@@ -1,0 +1,62 @@
+---
+title: "load-data"
+author: "Daniel Moul"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(tidyverse, warn.conflicts = FALSE)
+library(arrow, warn.conflicts = FALSE)
+library(jsonlite)
+library(janitor)
+
+# library(readr)
+# options(readr.read_lazy = TRUE)
+
+```
+
+```{r}
+#rec_areas <- read_json_arrow("./data/raw/RIDBFullExport_V1_JSON/RecAreas_API_v1.json")
+rec_areas_raw <- fromJSON("./data/raw/RIDBFullExport_V1_JSON/RecAreas_API_v1.json",
+                      flatten = FALSE)
+rec_areas <- rec_areas_raw[[1]] %>%
+  clean_names()
+
+# campsites (campsidetid and facilityid)
+campsites_raw <- fromJSON("./data/raw/RIDBFullExport_V1_JSON/Campsites_API_v1.json",
+                      flatten = FALSE)
+campsites <- campsites_raw[[1]] %>%
+  clean_names()
+
+#attributes per campsite (entityid)
+campsite_attributes_raw <- fromJSON("./data/raw/RIDBFullExport_V1_JSON/CampsiteAttributes_API_v1.json",
+                      flatten = FALSE)
+campsite_attributes <- campsite_attributes_raw[[1]] %>%
+  clean_names()
+
+# activityid codes
+activities_raw <- fromJSON("./data/raw/RIDBFullExport_V1_JSON/Activities_API_v1.json",
+                      flatten = FALSE)
+activities <- activities_raw[[1]] %>%
+  clean_names()
+
+#facilities (facilityID and parentorgid)
+facilities_raw <- fromJSON("./data/raw/RIDBFullExport_V1_JSON/Facilities_API_v1.json",
+                      flatten = FALSE)
+facilities <- facilities_raw[[1]] %>%
+  clean_names()
+
+#facilities (facilityID and parentorgid)
+facility_addresses_raw <- fromJSON("./data/raw/RIDBFullExport_V1_JSON/FacilityAddresses_API_v1.json",
+                      flatten = FALSE)
+facility_addresses <- facility_addresses_raw[[1]] %>%
+  clean_names()
+# postal_code and address_state_code are reversed, and some states like UTAH are not always abbreviated
+
+
+
+```
+

@@ -5,19 +5,19 @@ date: "`r Sys.Date()`"
 output: html_document
 ---
 
+<br>
+
 # From Data is Plural newsletter:
 
 >Campsite reservations. The US government’s Recreation Information Database “represents an authoritative source of information and services for millions of visitors to federal lands, historic sites, museums, and other attractions/resources.” It provides bulk data and an API describing recreational areas, campgrounds, campsites, permit entrances, scheduled tours, and more. You can also download detailed historical data on individual campsite and tour reservations going back to 2006. As seen in: “The Camping Crunch,” published by the Center for Western Priorities, and accompanying methodology. [h/t @mtmagog]
 
-Main article including data visulizations: https://westernpriorities.org/the-camping-crunch/
+Main article including data visualizations: https://westernpriorities.org/the-camping-crunch/
 
 Data: https://ridb.recreation.gov/download
 
-I downloaded historical data for each year FY 2006 - FY 2020 as zipped CSV files, e.g, https://ridb.recreation.gov/downloads/reservations2020.zip
+on 2021-11-11 I downloaded historical data for each year FY 2006 - FY 2020 as zipped CSV files, e.g, https://ridb.recreation.gov/downloads/reservations2020.zip
 
-I downloaded RIDB Recreation Data
-
-"To download all the RIDB recreation area, facility, and site level data in CSV or JSON format, please select the link below. Updated Daily." JSON Format: https://ridb.recreation.gov/downloads/RIDBFullExport_V1_JSON.zip
+I also downloaded RIDB Recreation Data: "To download all the RIDB recreation area, facility, and site level data in CSV or JSON format, please select the link below. Updated Daily." JSON Format: https://ridb.recreation.gov/downloads/RIDBFullExport_V1_JSON.zip
 
 <br>
 
@@ -25,28 +25,60 @@ I downloaded RIDB Recreation Data
 
 The article states the following:
 
-    >New analysis of public lands camping data reveals that summer use of reservable national public lands camping facilities has increased at least as rapidly as overall public lands visitation, with an estimated 39% increase in peak season reservable campsite occupancy in the lower 48 between 2014 and 2020. In comparison, from 2013 to 2019, national park visitation grew 20 percent, from roughly 273 million to 327 million guests; similarly, visits to Bureau of Land Management (BLM) sites, such as national monuments and national conservation areas, rose by 20 percent from 2009 to 2019. Although more users of public lands is a good thing, the increase in visitation has led to serious overcrowding on some public lands, straining infrastructure such as campgrounds during the peak summer season.
-    
-Is the same true for NC?
+>New analysis of public lands camping data reveals that summer use of reservable national public lands camping facilities has increased at least as rapidly as overall public lands visitation, with an estimated 39% increase in peak season reservable campsite occupancy in the lower 48 between 2014 and 2020. In comparison, from 2013 to 2019, national park visitation grew 20 percent, from roughly 273 million to 327 million guests; similarly, visits to Bureau of Land Management (BLM) sites, such as national monuments and national conservation areas, rose by 20 percent from 2009 to 2019. Although more users of public lands is a good thing, the increase in visitation has led to serious overcrowding on some public lands, straining infrastructure such as campgrounds during the peak summer season.
 
-What are the NC properties included?
 
-What trends exist for summer season, off season, weekdays versus weekends?
+Some "research questions"
 
-Are there any significant divergences in trends among the properties?
+* Is the same true for NC?
 
+* What NC properties are included? Are any obviously missing?
+
+* What trends exist for summer season, off season, weekdays versus weekends?
+
+* Are there any significant divergences in trends among the properties?
+
+* How often is the historical data collected: daily? weekly? monthly? By what categorization, if any?
+
+* How complete is the data for all NC sites?
+
+
+About the data itself:
+
+* Which JSON files do I need to answer the above questions?
+
+* What fields in the various JSON files can I use to join the data?
+
+* Is there a code book? What does each field mean? A https://ridb.recreation.gov/standards
+
+```
+Federal Camping Data Standard
+
+Federal land agencies that manage campgrounds established a data standard to make it easier for campground information to be accessed, exchanged, and used among agencies and by the public.
+
+The Federal Camping Data Standard (FCDS):
+* Identifies a common set of standardized terminology that can be consistently applied to a core set of campground information.
+* Can be applied to existing databases and enable data to be combined or shared among agencies.
+* Contributes to the Federal Government's ongoing pursuit of improving efficiency.
+
+Participating agencies include the National Park Service (NPS), Bureau of Land Management (BLM), Bureau of Reclamation (BOR), U.S. Fish and Wildlife Service (FWS), U.S. Forest Service (USFS) and the U.S. Army Corps of Engineers (USACE).
+
+Download the most recent version of the FCDS documentation: https://ridb.recreation.gov/ridb/dist/assets/pdf/Federal_Camping_Data_Standard_1.0.pdf
+```
 
 <br>
 
 # Getting the data ready
 
-The yearly files are for all of the USA and for FY20 is 1.8GB in size.
+The historical data files are for all of the USA, and for FY20 alone it is 1.8GB in size.
 
-* Should I filter them to NC only before loading into R?
+Some questions re: method:
 
-* Should I save them as parquet files, apache arrow feather, or other columnar format files?
+* Should I filter them to NC only before loading into R, for example, using awk?
 
-* Perhaps this is a good excuse to learn to apache arrow. What specifically would I like to learn?
+* Should I save them as parquet, apache arrow feather, or other columnar format files?
+
+* Perhaps this is a good excuse to learn to apache arrow. What specifically would I like to learn? See https://arrow.apache.org/docs/r/
 
 * Should I put the data cleaning in a {targets} pipeline like I did for my nightime-light project?
 
