@@ -1,0 +1,56 @@
+---
+title: "camping notes"
+author: "Daniel Moul"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# From Data is Plural newsletter:
+
+>Campsite reservations. The US government’s Recreation Information Database “represents an authoritative source of information and services for millions of visitors to federal lands, historic sites, museums, and other attractions/resources.” It provides bulk data and an API describing recreational areas, campgrounds, campsites, permit entrances, scheduled tours, and more. You can also download detailed historical data on individual campsite and tour reservations going back to 2006. As seen in: “The Camping Crunch,” published by the Center for Western Priorities, and accompanying methodology. [h/t @mtmagog]
+
+Main article including data visulizations: https://westernpriorities.org/the-camping-crunch/
+
+Data: https://ridb.recreation.gov/download
+
+I downloaded historical data for each year FY 2006 - FY 2020 as zipped CSV files, e.g, https://ridb.recreation.gov/downloads/reservations2020.zip
+
+I downloaded RIDB Recreation Data
+
+"To download all the RIDB recreation area, facility, and site level data in CSV or JSON format, please select the link below. Updated Daily." JSON Format: https://ridb.recreation.gov/downloads/RIDBFullExport_V1_JSON.zip
+
+<br>
+
+# Interesting questions
+
+The article states the following:
+
+    >New analysis of public lands camping data reveals that summer use of reservable national public lands camping facilities has increased at least as rapidly as overall public lands visitation, with an estimated 39% increase in peak season reservable campsite occupancy in the lower 48 between 2014 and 2020. In comparison, from 2013 to 2019, national park visitation grew 20 percent, from roughly 273 million to 327 million guests; similarly, visits to Bureau of Land Management (BLM) sites, such as national monuments and national conservation areas, rose by 20 percent from 2009 to 2019. Although more users of public lands is a good thing, the increase in visitation has led to serious overcrowding on some public lands, straining infrastructure such as campgrounds during the peak summer season.
+    
+Is the same true for NC?
+
+What are the NC properties included?
+
+What trends exist for summer season, off season, weekdays versus weekends?
+
+Are there any significant divergences in trends among the properties?
+
+
+<br>
+
+# Getting the data ready
+
+The yearly files are for all of the USA and for FY20 is 1.8GB in size.
+
+* Should I filter them to NC only before loading into R?
+
+* Should I save them as parquet files, apache arrow feather, or other columnar format files?
+
+* Perhaps this is a good excuse to learn to apache arrow. What specifically would I like to learn?
+
+* Should I put the data cleaning in a {targets} pipeline like I did for my nightime-light project?
+
+
+
+
+
