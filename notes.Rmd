@@ -42,6 +42,8 @@ Some "research questions"
 
 * How complete is the data for all NC sites?
 
+* How much has the cost per person per night increased over the years?
+
 
 About the data itself:
 
