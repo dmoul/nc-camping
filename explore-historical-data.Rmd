@@ -36,7 +36,29 @@ big_campground_size <- 50 # fifty or more campsites
 ```
 
 ```{r}
+facilities_raw <- fromJSON("./data/raw/RIDBFullExport_V1_JSON/Facilities_API_v1.json",
+                      flatten = FALSE)
+
+facilities <- facilities_raw[[1]] %>%
+  mutate_if(is.character, ~map_chr(.x, iconv, "UTF-8", "UTF-8", sub='')) %>% # just in case
+  clean_names() %>%
+  mutate(facility_name = str_to_title(facility_name),
+         facility_name = if_else(facility_id == "250838", "Halfway Group Campground", facility_name)
+         ) %>%
+  select(facility_id, facility_name, facility_type_description)
+
+
+```
+
+
+```{r}
 nc_hist <- read_feather("./data/processed/nc_historical_camping.feather") %>%
+  mutate_if(is.character, ~map_chr(.x, iconv, "UTF-8", "UTF-8", sub='')) %>% # just in case
+  left_join(.,
+            facilities ,
+            by = "facility_id") %>%
+  filter(!is.na(path),
+         use_type == "Overnight") %>%
   mutate(year = year(start_date),
          park = str_to_title(park),
          park = case_when(
@@ -53,7 +75,7 @@ nc_hist <- read_feather("./data/processed/nc_historical_camping.feather") %>%
            str_detect(park, "Cheoah Point")         ~ "Cheoah Point Campgrounds",
            TRUE                                     ~ park
          ),
-         year = as.numeric(str_extract(path, "\\d+")),
+         path_year = as.numeric(str_extract(path, "\\d+")),
          site_type_simple = case_when(
            str_detect(site_type, "TENT")        ~ "tent",
            str_detect(site_type, "CABIN")       ~ "cabin",
@@ -76,7 +98,9 @@ nc_hist %>%
   group_by(year) %>%
   summarize(n = n()) %>%
   adorn_totals(where = "row") %>%
-  gt()
+  gt() %>%
+  fmt_number(columns = c(n),
+             decimals = 0)
 ```
 
 <br><br>
@@ -94,7 +118,9 @@ nc_hist %>%
   group_by(path) %>%
   summarize(n = n()) %>%
   adorn_totals(where = "row") %>%
-  gt()
+  gt() %>%
+  fmt_number(columns = c(n),
+             decimals = 0)
 ```
 
 <br><br>
@@ -105,14 +131,16 @@ How about total camping nights per year?
 
 ```{r}
 nc_camping_nights <- nc_hist %>%
-  mutate(year = as.numeric(str_extract(path, "\\d+"))) %>%
+  #mutate(year = as.numeric(str_extract(path, "\\d+"))) %>%
   group_by(year) %>%
   summarize(n = n(), 
             n_nights = sum(nights, na.rm = TRUE)) 
 
 nc_camping_nights %>%
   adorn_totals(where = "row")%>%
-  gt()
+  gt() %>%
+  fmt_number(columns = c(n, n_nights),
+             decimals = 0)
 
 ```
 
@@ -151,14 +179,14 @@ There is a lot of missing data, especially in the earlier years. Let's look at t
 
 nc_camping_nights <- nc_hist %>%
   mutate(year = as.numeric(str_extract(path, "\\d+"))) %>%
-  group_by(year, park) %>%
+  group_by(year, facility_name) %>%
   summarize(n = n(), 
             n_nights = sum(nights, na.rm = TRUE)) %>%
   ungroup()
 
 campgrounds_with_2008_data <- nc_camping_nights %>%
   filter(year == 2008) %>%
-  select(park)
+  select(facility_name)
 
 normalization <- nc_camping_nights %>%
   filter(year == 2008) %>%
@@ -167,7 +195,7 @@ normalization <- nc_camping_nights %>%
 
 nc_camping_nights_for_plot <- nc_camping_nights %>%
   inner_join(., campgrounds_with_2008_data,
-             by = "park") %>%
+             by = "facility_name") %>%
   group_by(year) %>%
   summarize(n = n(), 
             n_nights = sum(n_nights, na.rm = TRUE)) %>%
@@ -218,7 +246,8 @@ normalization <- nc_camping_nights %>%
 
 ```{r}
 nc_camping_nights_for_plot <- nc_camping_nights_site_type %>%
-  filter(year >= 2008) #%>% 
+  filter(year >= 2008,
+         year != 2018) #%>% 
   # mutate(nights_normalized = n_nights / normalization) 
 
 nc_camping_nights_for_plot %>%
@@ -354,7 +383,7 @@ nc_camping_nights_for_plot %>%
 nc_camping_nights_site_type <- nc_hist %>%
   filter(str_detect(site_type, "STANDARD") & !str_detect(site_type, "GROUP")) %>%
   mutate(year = as.numeric(str_extract(path, "\\d+"))) %>%
-  group_by(year, park, site_type) %>%
+  group_by(year, facility_name, site_type) %>%
   summarize(n = n(), 
             n_person_nights = sum(people_nights, na.rm = TRUE)) %>%
   ungroup()
@@ -377,14 +406,14 @@ nc_camping_nights_campground_for_plot <- nc_camping_nights_for_plot %>%
   filter(str_detect(site_type, "STANDARD|TENT|GROUP(.*)NONELECTRIC|RV"),
          #!str_detect(site_type, "GROUP")
          ) %>%
-  group_by(year, park, site_type) %>%
+  group_by(year, facility_name, site_type) %>%
   summarize(n_person_nights = sum(n_person_nights)) %>%
   ungroup() %>%
-  group_by(year, park,) %>%
+  group_by(year, facility_name,) %>%
   mutate(combined_n_person_nights = sum(n_person_nights)) %>%
   ungroup() %>%
-  arrange(year, park) %>%
-  group_by(park) %>%
+  arrange(year, facility_name) %>%
+  group_by(facility_name) %>%
   mutate(
     max_n = max(combined_n_person_nights),
     min_n = min(combined_n_person_nights),
@@ -396,18 +425,18 @@ nc_camping_nights_campground_for_plot <- nc_camping_nights_for_plot %>%
 
 
 ```{r fig.height=8}
-park_levels <- nc_camping_nights_campground_for_plot %>%
-  group_by(park) %>%
+facility_name_levels <- nc_camping_nights_campground_for_plot %>%
+  group_by(facility_name) %>%
   filter(year == max(year)) %>%
   ungroup() %>%
-  distinct(park, combined_n_person_nights) %>%
+  distinct(facility_name, combined_n_person_nights) %>%
   arrange(desc(combined_n_person_nights)) %>%
-  pull(park)
+  pull(facility_name)
 
 nc_camping_nights_campground_for_plot %>%
-  mutate(park = factor(park, levels = park_levels),
-         park_label = glue("{park}: {percent(pct_change, accuracy = 1)}"),
-         park_label = fct_reorder(park_label, -combined_n_person_nights) #pct_change)
+  mutate(facility_name = factor(facility_name, levels = facility_name_levels),
+         facility_name_label = glue("{facility_name}: {percent(pct_change, accuracy = 1)}"),
+         facility_name_label = fct_reorder(facility_name_label, -combined_n_person_nights) #pct_change)
          ) %>%
   ggplot(aes(year, n_person_nights, color = site_type)) +
   geom_line() +
@@ -417,7 +446,7 @@ nc_camping_nights_campground_for_plot %>%
   scale_color_viridis_d(end = 0.92) +
   guides(color = guide_legend(reverse = TRUE)) +
   expand_limits(y = 0) +
-  facet_wrap(~ park, scales = "free_y") +
+  facet_wrap(~ facility_name, scales = "free_y") +
   labs(title = "Person-nights of camping in NC",
        subtitle = "Subplots ordered by decending number of person-nights",
        x = "",
@@ -475,7 +504,6 @@ nc_camping_cost %>%
   scale_color_viridis_d(end = 0.92) +
   guides(color = guide_legend(reverse = TRUE)) +
   expand_limits(y = c(0, max(nc_camping_cost$cost_avg * 2))) +
-  #facet_wrap(~ park, scales = "free_y") +
   labs(title = "Camping in NC continues to be a great value",
        subtitle = glue("Median cost per person-night",
                     "\nconsidering all NC public campgrounds"),
@@ -493,7 +521,7 @@ nc_camping_revenue <- nc_hist %>%
   #filter(str_detect(site_type, "STANDARD") & !str_detect(site_type, "GROUP")) %>%
   filter(!str_detect(site_type, "MANAGEMENT")) %>%
   mutate(year = as.numeric(str_extract(path, "\\d+"))) %>%
-  group_by(year, park) %>%
+  group_by(year, facility_name) %>%
   summarize(n = n(), 
             revenue_in_year = sum(people_nights, na.rm = TRUE)#,
             # cost_median = median(paid_person_night, na.rm = TRUE),
@@ -503,22 +531,22 @@ nc_camping_revenue <- nc_hist %>%
 ```
 
 ```{r fig.height=8}
-park_levels <- nc_camping_revenue %>%
-  group_by(park) %>%
+facility_name_levels <- nc_camping_revenue %>%
+  group_by(facility_name) %>%
   filter(revenue_in_year == max(revenue_in_year),
          n > 1) %>%
   ungroup() %>%
-  distinct(park, revenue_in_year) %>%
+  distinct(facility_name, revenue_in_year) %>%
   arrange(desc(revenue_in_year)) %>%
-  pull(park)
+  pull(facility_name)
 
 nc_camping_revenue %>%
-  filter(!str_detect(park, "Picnic"),
-         !str_detect(park, "Shelter"),
+  filter(!str_detect(facility_name, "Picnic"),
+         !str_detect(facility_name, "Shelter"),
          n > 1) %>%
-  mutate(park = factor(park, levels = park_levels),
-  #        # park_label = glue("{park}: {percent(pct_change, accuracy = 1)}"),
-  #        # park_label = fct_reorder(park_label, -combined_n_person_nights) #pct_change)
+  mutate(facility_name = factor(facility_name, levels = facility_name_levels),
+  #        # facility_name_label = glue("{facility_name}: {percent(pct_change, accuracy = 1)}"),
+  #        # facility_name_label = fct_reorder(facility_name_label, -combined_n_person_nights) #pct_change)
   ) %>%
   ggplot(aes(year, revenue_in_year)) +
   geom_line() +
@@ -528,7 +556,7 @@ nc_camping_revenue %>%
   scale_color_viridis_d(end = 0.92) +
   guides(color = guide_legend(reverse = TRUE)) +
   expand_limits(y = 0) +
-  facet_wrap(~ park, scales = "free_y") +
+  facet_wrap(~ facility_name, scales = "free_y") +
   labs(title = "Camping revenue by year",
        subtitle = "Subplots ordered by decending maximum yearly camping revenue",
        x = "",
@@ -550,7 +578,7 @@ Are there trends in the duration of stay for any of the site types?
 nc_camping_nights <- nc_hist %>%
   filter(year >= 2007) %>% 
   inner_join(., campgrounds_with_2008_data,
-             by = "park") %>%
+             by = "facility_name") %>%
   group_by(year, site_type_simple) %>% 
   summarize(n = n(), 
             n_nights = sum(nights, na.rm = TRUE),
@@ -560,7 +588,7 @@ nc_camping_nights <- nc_hist %>%
 
 # campgrounds_with_2008_data <- nc_camping_nights %>%
 #   filter(year == 2008) %>%
-#   select(park)
+#   select(facility_name)
 
 # normalization <- nc_camping_nights %>%
 #   filter(year == 2008) %>%
@@ -608,8 +636,8 @@ nc_camping_nights <- nc_hist %>%
   filter(year >= 2017,
          site_type_simple == "group") #%>% 
   # inner_join(., campgrounds_with_2008_data,
-  #            by = "park") %>%
-  # group_by(year, park) %>% 
+  #            by = "facility_name") %>%
+  # group_by(year, facility_name) %>% 
   # summarize(n = n(), 
   #           n_nights = sum(nights, na.rm = TRUE),
   #           n_nights_med = median(nights, na.rm = TRUE),
@@ -668,7 +696,7 @@ xx %>%
 
 <br>
 
-So I adjust for likely data errors, perhaps due to switching vendors in 2019 (and even this adjustment seems like not enough):
+So I adjust for likely data errors, perhaps due to switching vendors in 2019 (and even this adjustment seems like not enough). Best to assume 2018 data is not accurage or complete.
 
 ```
 # where order_date is more than 10 days after camping end_date, assume the year is off by one
@@ -729,24 +757,27 @@ facilities <- facilities_raw[[1]] %>%
 
 
 ```{r fig.height=6}
-park_years_raw <- read_feather("./data/processed/park-years.feather") %>%
+facility_name_years_raw <- read_feather("./data/processed/park-years.feather") %>%
   distinct(facility_id, site_type, start_year, .keep_all = TRUE) %>%
   mutate_if(is.character, ~map_chr(.x, iconv, "UTF-8", "UTF-8", sub='')) %>% # just in case
+  left_join(.,
+            facilities,
+            by = "facility_id") %>%
   mutate(use_type = str_to_lower(use_type),
-         park = str_to_lower(park))
+         facility_name = str_to_lower(facility_name))
 ```
 
 
 ```{r fig.height=6}
-park_years <- left_join(facilities %>% select(facility_id, facility_name, facility_type_description),
-                park_years_raw,
+facility_name_years <- left_join(facilities %>% select(facility_id, facility_name, facility_type_description),
+                facility_name_years_raw,
                 by = "facility_id") %>%
   filter(!is.na(path),
          use_type == "overnight") %>%
   distinct(facility_id, site_type, start_year, .keep_all = TRUE)
 
 
-# facility_id_hist <- park_years %>%
+# facility_id_hist <- facility_name_years %>%
 #   distinct(facility_id, .keep_all = TRUE)
 ```
 
@@ -810,39 +841,43 @@ parks_all_years_overnight_for_plot <- parks_all_years_overnight %>%
   mutate(site_type_simple = fct_reorder(site_type_simple, -n_years))
 ```
 
+<br>
+
 ```{r fig.height=4}
 parks_all_years_overnight_for_plot %>%
-  ggplot(aes(n_years, fill = site_type_simple)) +
-  geom_histogram(binwidth = 1) +
-  #geom_line() +
-  #geom_point(size = 2) +
-  #scale_x_continuous(breaks = c(2005, 2010, 2015, 2020)) +
-  #facet_wrap(~site_type_simple) +
+  count(year_min, site_type_simple) %>%
+  ggplot(aes(x = year_min, y = n, fill = site_type_simple)) +
+  geom_area(stat = "identity") +
+  scale_y_continuous(label = comma_format()) +
   scale_fill_viridis_d(end = 0.92, direction = -1) +
-  labs(title = "Number of facilities offering site_type_simple with 'Overnight' use_type by year",
-       subtitle = glue("As represented in published reservation.gov data set",
+  labs(title = "Number of facilities newly offering site_type_simple with 'Overnight' use_type by year",
+       subtitle = glue("As represented in published recreation.gov data set",
                        " {min(parks_all_years_overnight_for_plot$year_min)}", 
-                       " to {max(parks_all_years_overnight_for_plot$year_min)}"),
-       x = "N years offering this kind kind of site"
+                       " to {max(parks_all_years_overnight_for_plot$year_min)}",
+                       "\nBy 2008 it seems existing sites were reservable; later years are likely organic growth"),
+       x = "Year newly offering reservations for each kind of site offer overnight reservations at recreation.gov",
+       y = "Number of facilities in the USA"
   )
 ```
 
 <br>
 
 ```{r fig.height=6}
+year_lower_bound <- 2009
+
 parks_all_years_overnight_for_plot %>%
-  ggplot(aes(n_years, fill = site_type_simple)) +
+  filter(year_min > year_lower_bound) %>%
+  ggplot(aes(year_min, fill = site_type_simple)) +
   geom_histogram(binwidth = 1) +
-  #geom_line() +
-  #geom_point(size = 2) +
-  #scale_x_continuous(breaks = c(2005, 2010, 2015, 2020)) +
+  scale_x_continuous(breaks = c(2005, 2010, 2015, 2020)) +
   facet_wrap(~site_type_simple) +
   scale_fill_viridis_d(end = 0.92, direction = -1) +
-  labs(title = "Number of facilities offering site_type_simple with 'Overnight' use_type by year",
-       subtitle = glue("As represented in published reservation.gov data set",
-                       " {min(parks_all_years_overnight_for_plot$year_min)}", 
+  labs(title = "Number of facilities newly offering site_type_simple with 'Overnight' use_type by year (2009+)",
+       subtitle = glue("As represented in published recreation.gov data set",
+                       " {year_lower_bound}", 
                        " to {max(parks_all_years_overnight_for_plot$year_min)}"),
-       x = "N years offering this kind kind of site"
+       x = "Year newly offering reservations for each kind of site offer overnight reservations at recreation.gov",
+       y = "Number of facilities in the USA"
   )
 ```
 
@@ -913,7 +948,7 @@ parks_all_years_overnight_for_plot %>%
        subtitle = glue(#"combined annual growth rate (AGR): {percent(last(agr), accuracy = 0.1)}"),
                        "Compound annual growth rate (CAGR) for all offering site types: {percent(cagr, accuracy = 0.1)}",
                        " from {min(parks_all_years_overnight_for_plot$start_year)} to {max(parks_all_years_overnight_for_plot$start_year)}",
-                       "\nAs represented in published reservation.gov data set"),
+                       "\nAs represented in published recreation.gov data set"),
        x = "Reservation start year",
        color = "Site type (CAGR)")
 ```
@@ -921,14 +956,80 @@ parks_all_years_overnight_for_plot %>%
 <br>
 
 ```{r fig.height=5}
-parks_all_years_overnight %>%
-  group_by(year, site_type_simple) %>%
-  mutate(n_parks = n()) %>%
-  ungroup() %>%
+library(ggridges)
+
+# parks_all_years_overnight %>%
+#   mutate(start_year = as.character(start_year),
+#          park_site_type_unit = 1) %>%
+#   group_by(start_year, site_type_simple) %>%
+#   mutate(n_parks = n(),
+#          n_park_with_site_type = sum(park_site_type_unit)) %>%
+#   ungroup() %>%
   #mutate(site_type_simple = fct_reorder(site_type_simple, -n_parks)) %>%
-  ggplot(aes(n_parks, fill = site_type_simple)) +
-  geom_line(binwidth = 1) +
-  facet_wrap(~site_type_simple) +
+
+
+park_years %>%
+  filter(use_type == "overnight",
+         !str_detect(site_type, "MANAGEMENT")) %>%
+  mutate(
+    site_type_simple = case_when(
+      str_detect(site_type, "TENT")        ~ "tent",
+      str_detect(site_type, "CABIN|YURT")       ~ "cabin",
+      str_detect(site_type, "GROUP")       ~ "group",
+      str_detect(site_type, "RV")          ~ "rv",
+      str_detect(site_type, "EQUESTRIAN")  ~ "equestrian",
+      str_detect(site_type, "STANDARD")    ~ "standard",
+      str_detect(site_type, "SHELTER")     ~ "shelter",
+      str_detect(site_type, "MANAGEMENT")  ~ "management",
+      str_detect(site_type, "HIKE TO|WALK IN|BOAT TO")  ~ "tent", # assume these are tent
+      TRUE                                 ~ "other"
+    )
+  ) %>%
+  distinct(facility_id, site_type_simple, start_year, .keep_all = TRUE) %>%
+  ggplot() + #, fill = site_type_simple)) +
+  geom_density_ridges(aes(y = site_type_simple, x = start_year, fill = site_type_simple),
+                      alpha = 0.6) +
+  #facet_wrap(~site_type_simple) +
   labs(title = "Number of facilities offering site_type_simple with 'Overnight' use_type by year",
-       subtitle = "As represented in published reservation.gov data set")
+       subtitle = "As represented in published recreation.gov data set")
 ```
+
+<br>
+
+```{r}
+park_years %>%
+  filter(use_type == "overnight",
+         !str_detect(site_type, "MANAGEMENT")) %>%
+  mutate(
+    site_type_simple = case_when(
+      str_detect(site_type, "TENT")        ~ "tent",
+      str_detect(site_type, "CABIN|YURT")       ~ "cabin",
+      str_detect(site_type, "GROUP")       ~ "group",
+      str_detect(site_type, "RV")          ~ "rv",
+      str_detect(site_type, "EQUESTRIAN")  ~ "equestrian",
+      str_detect(site_type, "STANDARD")    ~ "standard",
+      str_detect(site_type, "SHELTER")     ~ "shelter",
+      str_detect(site_type, "MANAGEMENT")  ~ "management",
+      str_detect(site_type, "HIKE TO|WALK IN|BOAT TO")  ~ "tent", # assume these are tent
+      TRUE                                 ~ "other"
+    )
+  ) %>%
+  distinct(facility_id, site_type_simple, start_year, .keep_all = TRUE) %>%
+  group_by(start_year, site_type_simple) %>%
+  summarize(n_parks = n()) %>%
+  ungroup() %>%
+  mutate(n_parks_scaled = n_parks / max(n_parks),
+         site_type_simple = fct_reorder(site_type_simple, n_parks, max)) %>%
+  ggplot() + #, fill = site_type_simple)) +
+  geom_ridgeline(aes(y = site_type_simple, x = start_year, height = n_parks_scaled, fill = site_type_simple),
+                      alpha = 0.6) +
+  scale_fill_viridis_d(end = 0.92, direction = 1) +
+  guides(fill = guide_legend(reverse = TRUE)) +
+  theme(legend.position = "none") +
+  #facet_wrap(~site_type_simple) +
+  labs(title = "Number of facilities offering site_type_simple \nwith 'Overnight' use_type by year",
+       subtitle = "As represented in published recreation.gov data set",
+       x = NULL,
+       y = NULL)
+```
+
