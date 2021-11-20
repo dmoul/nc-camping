@@ -85,6 +85,12 @@ Some questions re: method:
 * Should I put the data cleaning in a {targets} pipeline like I did for my nightime-light project?
 
 
+<br>
+
+TODO
+
+* Adjust chunk properties to get wide graphs displaying well
+
 
 
 
