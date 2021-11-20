@@ -1,0 +1,40 @@
+---
+title: "NC Camping Writeup"
+author: "Daniel Moul"
+date: "`r Sys.Date()`"
+output: html_document2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(tidyverse, warn.conflicts = FALSE)
+library(arrow, warn.conflicts = FALSE)
+library(jsonlite)
+library(janitor)
+library(gt)
+library(scales)
+library(glue)
+library(lubridate)
+library(purrr)
+
+library(hrbrthemes)
+# remotes::install_github("hrbrmstr/hrbrthemes")
+# run 2021-08-01 to address segfault errors like this:
+# sh: line 1: 11020 Segmentation fault: 11  '/Library/Frameworks/R.framework/Versions/4.1/Resources/library/Rttf2pt1/exec//ttf2pt1' -a -GfAe '/Library/Frameworks/R.framework/Versions/4.1/Resources/library/hrbrthemes/fonts/roboto-condensed/RobotoCondensed-Bold.ttf' '/var/folders/0j/hjw8sflx19l6rw4s1l68qq640000gn/T//RtmpGN3PSJ/fonts/RobotoCondensed-Bold' 2>&1
+theme_set(theme_ipsum_ps() + 
+            theme(panel.grid.minor = element_blank()))
+import_plex_sans()
+
+# library(readr)
+# options(readr.read_lazy = TRUE)
+
+options(dplyr.summarise.inform = FALSE)
+
+big_campground_size <- 50 # fifty or more campsites
+
+```
+
+<br>
+
+Inspired by Tyler McInstosh's article [The Camping Crunch: Camping's rise in popularity on Americal's public lands](https://westernpriorities.org/the-camping-crunch/)^[The Camping Crunch: Camping's rise in popularity on Americal's public lands was published Oct 21, 2021 on the website of the Center or Western Priorities at https://westernpriorities.org/the-camping-crunch/ . I found it throught the reference in Jeremy Singer-Vines' excellent newsletter *Data is Plural*]
