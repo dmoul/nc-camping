@@ -969,23 +969,23 @@ library(ggridges)
 
 
 park_years %>%
-  filter(use_type == "overnight",
-         !str_detect(site_type, "MANAGEMENT")) %>%
-  mutate(
-    site_type_simple = case_when(
-      str_detect(site_type, "TENT")        ~ "tent",
-      str_detect(site_type, "CABIN|YURT")       ~ "cabin",
-      str_detect(site_type, "GROUP")       ~ "group",
-      str_detect(site_type, "RV")          ~ "rv",
-      str_detect(site_type, "EQUESTRIAN")  ~ "equestrian",
-      str_detect(site_type, "STANDARD")    ~ "standard",
-      str_detect(site_type, "SHELTER")     ~ "shelter",
-      str_detect(site_type, "MANAGEMENT")  ~ "management",
-      str_detect(site_type, "HIKE TO|WALK IN|BOAT TO")  ~ "tent", # assume these are tent
-      TRUE                                 ~ "other"
-    )
-  ) %>%
-  distinct(facility_id, site_type_simple, start_year, .keep_all = TRUE) %>%
+  # filter(use_type == "overnight",
+  #        !str_detect(site_type, "MANAGEMENT")) %>%
+  # mutate(
+  #   site_type_simple = case_when(
+  #     str_detect(site_type, "TENT")        ~ "tent",
+  #     str_detect(site_type, "CABIN|YURT")       ~ "cabin",
+  #     str_detect(site_type, "GROUP")       ~ "group",
+  #     str_detect(site_type, "RV")          ~ "rv",
+  #     str_detect(site_type, "EQUESTRIAN")  ~ "equestrian",
+  #     str_detect(site_type, "STANDARD")    ~ "standard",
+  #     str_detect(site_type, "SHELTER")     ~ "shelter",
+  #     str_detect(site_type, "MANAGEMENT")  ~ "management",
+  #     str_detect(site_type, "HIKE TO|WALK IN|BOAT TO")  ~ "tent", # assume these are tent
+  #     TRUE                                 ~ "other"
+  #   )
+  # ) %>%
+  # distinct(facility_id, site_type_simple, start_year, .keep_all = TRUE) %>%
   ggplot() + #, fill = site_type_simple)) +
   geom_density_ridges(aes(y = site_type_simple, x = start_year, fill = site_type_simple),
                       alpha = 0.6) +

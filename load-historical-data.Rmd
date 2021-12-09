@@ -187,46 +187,6 @@ get_nc_historical_2019plus <- function(fname) {
   tbl_tmp2
 }
 
-###### Create feature files, one per year of NC reservations
-
-for(i in 2006:2018) { # 2006:2018
-  message("working on ", i)
-  tbl <- get_nc_historical(all_files_csv_hist[str_detect(all_files_csv_hist, as.character(i))])
-  write_feather(tbl, paste0("./data/processed/nc_by_year_semiprocessed/nc_", i, ".feather"))
-}
-
-## The above ran 2021-11-14 with these warnings:
-# working on 2010
-# Warning: One or more parsing issues, see `problems()` for details
-# working on 2011
-# Warning: One or more parsing issues, see `problems()` for details
-# working on 2012
-# Warning: One or more parsing issues, see `problems()` for details
-# working on 2013
-# Warning: One or more parsing issues, see `problems()` for details
-# working on 2014
-# Warning: One or more parsing issues, see `problems()` for details
-# working on 2015
-# Warning: One or more parsing issues, see `problems()` for details
-# Warning in doTryCatch(return(expr), name, parentenv, handler) :
-#   restarting interrupted promise evaluation
-# working on 2016
-# Warning: One or more parsing issues, see `problems()` for details
-# working on 2017
-# Warning: One or more parsing issues, see `problems()` for details
-# working on 2018
-# Warning: One or more parsing issues, see `problems()` for details
-
-for(i in 2019:2020) {
-  
-  # test
-  # i <- 2020
-  
-  message("working on ", i)
-  tbl <- get_nc_historical_2019plus(all_files_csv_hist[str_detect(all_files_csv_hist, as.character(i))])
-  write_feather(tbl, paste0("./data/processed/nc_by_year_semiprocessed/nc_", i, ".feather"))
-}
-
 
 # nc_historical_part1 <- purrr::map_dfr(all_files_csv_hist[str_detect(all_files_csv_hist, "2006|2007|2008|2009|2010|2011|2012|2013|2014|2015|2016|2017|2018")],
                                 # get_nc_historical)

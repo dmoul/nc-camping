@@ -74,6 +74,19 @@ facility_addresses <- facility_addresses_raw[[1]] %>%
 nc_facility_addresses <- facility_addresses %>%
   filter(postal_code == "NC")
 
+
+orgs_raw <- fromJSON("./data/raw/RIDBFullExport_V1_JSON/Organizations_API_v1.json",
+                      flatten = FALSE)
+orgs_for_joining <- orgs_raw[[1]] %>%
+  clean_names() %>%
+  select(org_id, org_name, org_abbrev_name, org_url_address)
+
+# this isn't helpful to me
+# orgs_entities_raw <- fromJSON("./data/raw/RIDBFullExport_V1_JSON/OrgEntities_API_v1.json",
+#                       flatten = FALSE)
+# orgs_entities <- orgs_entities_raw[[1]] %>%
+#   clean_names()
+
 ```
 
 <br>
@@ -176,7 +189,7 @@ nc_campground_n_sites %>%
 Campgrounds with at least 100 campsites:
 
 ```{r}
-nc_campground_n_sites %>%
+nc_campground_n_big_sites_for_table <- nc_campground_n_sites %>%
   filter(n >= big_campground_size) %>%
   inner_join(.,
              nc_facilities,
@@ -186,16 +199,28 @@ nc_campground_n_sites %>%
   #            nc_campsites,
   #            by = "facility_id") %>%
   select(facility_id, facility_name, n_campsites = n) %>%
-  arrange(-n_campsites) %>%
+  arrange(-n_campsites) 
+
+nc_campground_n_big_sites_for_table %>%
   gt() %>%
-  tab_header(md(glue("**NC campgrounds with at least {big_campground_size} campsites**")))
+  tab_header(md(glue("**{nrow(nc_campground_n_sites_for_table)} NC campgrounds with at least {big_campground_size} campsites**")))
 ```
 
 <br><br>
 
 ```{r}
-nc_campground_n_sites %>%
-  filter(n >= big_campground_size) %>%
+nc_campground_n_all_sites_for_table <- nc_campground_n_sites %>%
+  inner_join(.,
+             nc_facilities,
+             by = "facility_id") %>%
+  # TODO: could modify the commented code to add subcatery: type of campsite
+  # inner_join(.,
+  #            nc_campsites,
+  #            by = "facility_id") %>%
+  select(facility_id, facility_name, n_campsites = n) %>%
+  arrange(-n_campsites) 
+
+nc_campground_n_all_sites_for_table %>%
   inner_join(.,
              nc_facilities,
              by = "facility_id") %>%
