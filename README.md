@@ -6,19 +6,29 @@ December 2021
 
 
 
-To recreate this analysis, create the following directories in the root folder:
+To recreate this analysis:
 
+1. Create the following directories in the project root directory:
+
+```
 ./data
 ./data/raw
+./data/raw/reservations
 ./data/processed
 ./figures/
 ./scripts
 ./
+```
 
-Download data from ***TODO: add here***
+2. Download data:
 
-Unzip reservationsYYYY.zip files; move historical CSV files "YYYY.csv" to ./data/raw/reservations directory
+    - ***TODO: add here***
+    - ***TODO: add here***
 
-Unzip RIDBFullExport_V1_JSON.zip, using the filename as the directory ("RIDBFullExport_V1_JSON"), which your unzipping program probably does automatically
+3. Unzip reservationsYYYY.zip files and move historical CSV files "YYYY.csv" to ./data/raw/reservations 
 
-See ./scripts/my-setup.R for R packages needed.
+4. Unzip RIDBFullExport_V1_JSON.zip, using the filename as the directory ("RIDBFullExport_V1_JSON"), which your unzipping program probably does automatically
+
+5. Install necessary R packages. See ./scripts/my-setup.R for R packages needed.
+
+6. Knit nc-camping-writeup.Rmd
