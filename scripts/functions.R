@@ -423,10 +423,7 @@ get_nc_camping_history <- function(path_feather = "./data/processed/nc_by_year_s
   # write_feather(nc_hist, paste0("./data/processed/nc_historical_camping.feather")) not needed since target will cache it
   
 }
-# xx_n_facilities <- count(facilities, facility_id, sort = TRUE)
-# xx_n_tmp <- count(nc_hist_tmp, facility_id, sort = TRUE)
-# xx_n_tmp2 <- count(nc_hist_tmp2, facility_id, sort = TRUE)
-# xx_n <- count(nc_hist, facility_id, sort = TRUE)
+
 
 ###### get_nc_camping_history_dow ###### 
 
@@ -495,8 +492,3 @@ get_nc_camping_history_yday <- function(tbl) {
   
 }
 
-
-# test
-# x2 <- tbl_tmp %>%
-#   filter(usetype == "Overnight") %>%
-#   count(sitetype, sort = TRUE)
