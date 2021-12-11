@@ -24,12 +24,26 @@ To recreate this analysis:
     - RIDB Recreation Data: https://ridb.recreation.gov/downloads/RIDBFullExport_V1_JSON.zip which has data about the facilities and organizations offering them
     - RIDB/Recreation.gov Historical Reservation Data: https://ridb.recreation.gov/downloads/reservations2006.zip through https://ridb.recreation.gov/downloads/reservations2020.zip
     
-I downloaded this data on 2021-11-11.
+    I downloaded this data on 2021-11-11.
 
-3. Unzip reservationsYYYY.zip files and move these historical CSV files "YYYY.csv" to ./data/raw/reservations 
+3. Unzip the files you downloaded
 
-4. Unzip RIDBFullExport_V1_JSON.zip, using the filename as the directory ("RIDBFullExport_V1_JSON"), which your unzipping program probably does automatically
+    - Unzip reservationsYYYY.zip files and move these historical CSV files "YYYY.csv" to ./data/raw/reservations 
 
+    - Unzip RIDBFullExport_V1_JSON.zip, using the filename as the directory ("RIDBFullExport_V1_JSON"), which your unzipping program probably does automatically
+
+4. Download script files from this GitHub project ( https://github.com/dmoul/nc-camping )
+
+    - ./_targets.R (pipeline functions and data)
+    - ./scripts/functions.R (used by targets to prepare data frames)
+    - ./scripts/my-setup.R (libraries, options, constants)
+    - ./nc-camping.Rmd (main script)
+    - ./README.md (this file)
+    
 5. Install necessary R packages. See ./scripts/my-setup.R for R packages needed.
 
-6. Knit nc-camping-writeup.Rmd
+6. Run targets::tar_make() to prepare data frames
+
+7. Knit nc-camping-writeup.Rmd
+
+7. See nc-camping-writeup.html
