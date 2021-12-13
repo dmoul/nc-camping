@@ -1,5 +1,5 @@
 ---
-title: "NC Camping Writeup"
+title: "Camping in NC at Federal Facilities"
 author: "Daniel Moul"
 date: "`r Sys.Date()`"
 output: 
@@ -8,7 +8,7 @@ output:
     toc_depth: 3
     number_sections: true
     #theme: united
-    code_folding: show
+    #code_folding: show
 ---
 
 ```{r setup, include=FALSE}
@@ -486,6 +486,61 @@ Some notes:
 <br>
 
 ```{r}
+
+year_end <- 2019
+
+nc_camping_person_nights_and_revenue_site_type <- nc_history %>%
+  mutate(year = year(start_date)) %>%
+  filter(between(year, year_lower_bound, year_end),
+         !str_detect(site_type, "management")) %>%
+  rename(facility_name_original = facility_name) %>%
+  mutate(facility_first_word = str_extract(facility_name_original, "\\w+"),
+         year = year - year_lower_bound + 1) %>% # year 1 is 2009
+  inner_join(.,
+             nc_parks_site_types %>% 
+               select(facility_id_group, facility_name, facility_id_list) %>%
+               mutate(facility_first_word = str_extract(facility_name, "\\w+")),
+             by = "facility_first_word") %>%
+  group_by(year, facility_name_original, facility_id, facility_id_list, 
+           facility_first_word, facility_name, facility_id_group, 
+           site_type_simple) %>%
+  summarize(n_reservations = n(), 
+            revenue_in_year = sum(total_paid, na.rm = TRUE),
+            person_nights = sum(person_nights)
+            ) %>%
+  ungroup() %>%
+  mutate(n_reservations_c = n_reservations - mean(n_reservations),
+         revenue_in_year_c = revenue_in_year - mean(revenue_in_year),
+         person_nights_c = person_nights - mean(person_nights),
+         log_n_reservations = log(n_reservations)
+  )
+
+# note: centered values ("_c") are differences from the mean
+```
+
+```{r fig.width=9, out.width="100%"}
+nc_camping_person_nights_and_revenue_site_type %>%
+  group_by(year, site_type_simple) %>%
+  summarize(person_nights = sum(person_nights)) %>%
+  ungroup() %>%
+  mutate(site_type_simple = fct_reorder(site_type_simple, person_nights),
+         year = year + year_lower_bound - 1) %>% #view()
+  ggplot(aes(x = year, y = person_nights, fill = site_type_simple)) +
+  geom_area() +
+  scale_x_continuous(labels = label_number(accuracy = 1, big.mark = ""),
+                     breaks = (1:5) * 2 + 2008) +
+  scale_y_continuous(labels = label_number_si(),
+                     breaks = c(1e6, 2e6)) +
+  scale_fill_viridis_d(end = 0.92, direction = -1) +
+  labs(title = "NC camping person_nights",
+       subtitle = glue("{year_lower_bound}-{year_end}"),
+       x = NULL,
+       fill = "Site type")
+```
+
+<br>
+
+```{r}
 # TODO: Fix duplicates & missings. Join is not working as expected.
 
 # there is some reuse of product_id across site_type_simple at single facility_ids, and maybe across facility_ids.
@@ -835,6 +890,26 @@ Part 2:
 ### Camping revenue by park
 
 Likewise camping revenue has been increasing in most parks, with 2020 being an anomaly for many of them.
+
+```{r fig.width=9, out.width="100%"}
+nc_camping_person_nights_and_revenue_site_type %>%
+  group_by(year, site_type_simple) %>%
+  summarize(revenue_in_year = sum(revenue_in_year)) %>%
+  ungroup() %>%
+  mutate(site_type_simple = fct_reorder(site_type_simple, revenue_in_year),
+         year = year + year_lower_bound - 1) %>% #view()
+  ggplot(aes(x = year, y = revenue_in_year, fill = site_type_simple)) +
+  geom_area() +
+  scale_x_continuous(labels = label_number(accuracy = 1, big.mark = ""),
+                     breaks = (1:5) * 2 + 2008) +
+  scale_y_continuous(labels = label_number_si(prefix = "$")) +
+  scale_fill_viridis_d(end = 0.92, direction = -1) +
+  labs(title = "NC camping revenue",
+       subtitle = glue("{year_lower_bound}-{year_end}"),
+       x = NULL,
+       y = "Overnight camping revenue",
+       fill = "Site type")
+```
 
 <br>
 
@@ -1617,11 +1692,11 @@ nc_camping_cost %>%
 
 Truly there are more people camping more nights at NC public facilities. The clearest increase can be seen in [Are there trends by day of the week?] in the plot *NC camping each night of the week (person-nights)*: each year, each day of the week, in the summer and off-season, there were more people camping (until the pandemic derailed the trend in 2020).
 
-I wonder whether growth at the NC state parks was similar over this time period. My hunch is that the NC parks are more often at max occupancy, so the growth rate may be capped. If the same data were available from ReserveAmerica.com perhaps I would do a similar analysis. Supposedly there is an API at https://developer.active.com/docs/read/Campground_APIs, however the comments suggest it is no longer available. The North Carolina Division of Parks and Recreation os part of the [N.C. Department of Natural and Cultural Resources](https://www.ncdcr.gov/about). make the data available? I couldn't find it in any of the NC govenment-sponsored open data portals.
+I wonder whether growth at the NC state parks was similar over this time period. My hunch is that the NC parks are more often at max occupancy, so the growth rate may be capped. If the same data were available from ReserveAmerica.com perhaps I would do a similar analysis. Supposedly there is an API at https://developer.active.com/docs/read/Campground_APIs, however the comments suggest it is no longer available. The North Carolina Division of Parks and Recreation is part of the [N.C. Department of Natural and Cultural Resources](https://www.ncdcr.gov/about). Do make the data available? I couldn't find it in any of the NC government-sponsored open data portals. Would they make the data available if I ask?
 
 <br>
 
-# Appendix 1: NC
+# Appendix 1: North Carolina
 
 ## There is some reuse of product_id values (unfortunately)
 
@@ -1679,7 +1754,7 @@ product_id_diff_pct <- product_id_diff / max(product_id_counts$n_sites)
 
 ```
 
-This complicates matters. Since the difference is at most `r product_id_diff` (`r percent(product_id_diff_pct)`), I generally work with "group_by(facility_id, site_type_simple)" and ignore the differences otherwise. 
+This complicates matters. Since the difference is at most `r product_id_diff` (`r percent(product_id_diff_pct)`), I generally work with counts calculated using "group_by(facility_id, site_type_simple)" and ignore the differences otherwise. 
 
 <br>
 
@@ -1765,7 +1840,7 @@ parks_all_years_overnight_for_plot %>%
        subtitle = glue("As represented in published recreation.gov data set",
                        " {min(parks_all_years_overnight_for_plot$year_min)}", 
                        " to {max(parks_all_years_overnight_for_plot$year_min)}",
-                       "\neBy end of {year_lower_bound} it seems most existing sites were reservable"),
+                       "\neBy end of {year_lower_bound - 1} it seems most existing sites were reservable"),
        x = "Year newly offering overnight reservations for each site type at recreation.gov",
        y = "Number of facilities in the USA",
        fill = "Site type"
@@ -1887,7 +1962,7 @@ park_years %>%
 The USA-level data does not include all reservable camping sites, presumably because they use a different reservation system. For example:
 
 * Yellowstone Hotel and Cabins are not reservable via recreation.gov, but campgrounds and backcountry camping permits are
-* Yosemite Creek Campground is not reservable, but other campgrounds are
+* Yosemite Creek Campground is not reservable, but other Yosemite campgrounds are
 * No overnight facilities in Hawaii are reservable (are there any?)
 
 In contrast: Great Smokey Mountain National Park campgrounds are all reservable.
