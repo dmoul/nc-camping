@@ -1,5 +1,5 @@
 ---
-title: "Explore regressions"
+title: "Explore regressions (experimental)"
 author: "Daniel Moul"
 date: "`r Sys.Date()`"
 output: 
@@ -10,6 +10,12 @@ output:
     #theme: united
     code_folding: show
 ---
+
+<br>
+
+***This is an experimental script. See nc-camping-writeup.Rmd for the main write-up. It's OK to run this script in it's entirely, but you need to have a bunch of Stan-related packages installed (and it take a while to run).***
+
+<br>
 
 ```{r setup, include=FALSE}
 library(here)
