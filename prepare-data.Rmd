@@ -7,9 +7,14 @@ output: html_document
 
 <br><br>
 
-***This is an experimental script used prior to the development of nc-camping-writeup.Rmd. It is not needed and may not work correctly.***
+***This is an experimental script used prior to the development of nc-camping-writeup.Rmd. It is not needed and may not work correctly. If you do use it, run individual chunks***
 
 <br>
+
+```{r}
+# Stop someone from running this naively
+knitr::knit_exit()
+```
 
 ```{r setup, include=FALSE}
 # knitr::opts_chunk$set(echo = FALSE)
