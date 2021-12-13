@@ -8,7 +8,7 @@ output:
     toc_depth: 3
     number_sections: true
     #theme: united
-    code_folding: show
+    #code_folding: show
 ---
 
 <br>
