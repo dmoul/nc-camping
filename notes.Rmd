@@ -93,4 +93,32 @@ TODO
 
 
 
+# What about NC state parks?
+
+The NC Office of State Budget and Managment (OSBM) home page https://linc.osbm.nc.gov/pages/home/ references [LINC](https://demography.osbm.nc.gov/explore/?sort=modified)
+
+>OSBM’s Log In to North Carolina (LINC) – a service containing over 900 data items including items pertaining to population, labor force, education, transportation, etc. LINC includes topline statistics from the State Demographer’s population estimates and projections while the North Carolina State Demographer data platform includes more detailed datasets for users requiring more detailed demographic information.
+
+This is interesting, but doesn't help with park visitors.
+
+[NCOneMap](https://www.nconemap.gov/datasets/NC::managed-areas-owner-type/about) does offer a table of NC Natural Heritage Managed Areas with 17K records at https://www.nconemap.gov/datasets/NC::managed-areas/explore?location=35.190124%2C-79.878450%2C7.87&showTable=true which backs the map. It doesn't include visitor data.
+
+The North Carolina Department of Natural and Cultural Resources, EPA and others provide data included in this table:
+https://linc.osbm.nc.gov/explore/dataset/environment-recreation-and-resources-linc/export/?disjunctive.area_name&disjunctive.year&disjunctive.variable&sort=variable however it's environmental data last updated in 2018, not visitors to NC state parks.
+
+There are 36 data sets related to NC at https://data.world/datasets/north-carolina as of 2021-12-10, but none include parks or park visitors.
+
+https://ncopenpass.com/open-data/ doesn't have it.
+
+https://auth1.dpr.ncparks.gov/nrid/public.php is the portal to the to the **North Carolina State Parks System Natural Resources Inventory Database** which can tell you about birds, amphibians, etc. but not human visitors.
+
+https://godort.libguides.com/statisticsdbs#s-lg-box-12832960 offers pointers for each state, but none for NC that addresses park visitors.
+
+https://d4.nccommerce.com is sponsored by the NC Department of Commerce. Interesting but not relevant to the question at hand.
+
+
+
+
+
+
 
