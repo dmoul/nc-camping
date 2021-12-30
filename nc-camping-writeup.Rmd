@@ -7,8 +7,6 @@ output:
     toc: true
     toc_depth: 3
     number_sections: true
-    #theme: united
-    #code_folding: show
 ---
 
 ```{r setup, include=FALSE}
@@ -43,7 +41,8 @@ nc_history <- tar_read(nc_camping_history) %>%
 year_min <- year_lower_bound
 year_max <- max(nc_history$year)
 
-nc_history_dow <- tar_read(nc_camping_history_dow) %>%
+# one row for each overnight stay (includes day of week (dow))
+nc_history_detail <- tar_read(nc_camping_history_detail) %>%
   mutate(year = year(start_date))
 
 nc_parks_site_types <- nc_history %>%
@@ -100,30 +99,7 @@ nc_parks_site_types_product_id <- nc_history %>%
   ungroup() %>%
   arrange(facility_name, site_type_simple)
 # one row for each facility_name (combined) and site_type_simple
-# for cases where only the facility_name ang or facility_group_id matters, use distinct()
-
-# nc_parks_site_types_original <- nc_history %>%
-#   mutate(
-#       name_first_word = str_extract(facility_name, "\\w+")
-#   ) %>% 
-#   # slice_sample(n = 1e5) %>% # for testing
-#   group_by(name_first_word) %>%
-#   mutate(facility_id_group = cur_group_id()
-#   ) %>%
-#   ungroup() %>%
-#   #distinct(name_first_word, facility_id_group, site_type_simple, .keep_all = TRUE) %>% 
-#   distinct(facility_id_group, facility_id, site_type_simple, .keep_all = TRUE) %>% 
-#   select(name_first_word, facility_id, facility_name, facility_type_description, site_type_simple, facility_id_group) %>%
-#   group_by(facility_id_group) %>%
-#   mutate(facility_name = as.list(facility_name),
-#          facility_name = glue_collapse(unique(facility_name), sep = " + "),
-#          facility_id_list = as.list(facility_id),
-#          facility_id_list = glue_collapse(unique(facility_id_list), sep = ", ")
-#   ) %>%
-#   ungroup() %>%
-#   arrange(facility_name, site_type_simple)
-# # one row for each facility_name (combined) and site_type_simple
-# # for cases where only the facility_name ang or facility_group_id matters, use distinct()
+# for cases where only the facility_name or facility_group_id matters, use distinct()
 
 nc_campsites <- tar_read(nc_campsites_from_history) %>%
   mutate(facility_name = case_when(
@@ -221,22 +197,24 @@ I wondered, in North Carolina ...
 
 ## What's possible given these data sets?
 
-First we have to check: what's in the data, and are there any important limitations? I found four:
+First we have to check: what's in the data, and are there any important limitations? I found five:
 
 1. [recreation.gov](https://recreation.gov/) mostly processes reservations for federal facilities. It does not process reservations for state-owned public campgrounds in North Carolina. NC State Parks use [ReserveAmerica.com](https://ReserveAmerica.com/) instead, thus the campgrounds closest to my home in the [Jordan Lake State Recreation Area](https://www.ncparks.gov/jordan-lake-state-recreation-area/home) and my favorite at [Mount Mitchell](https://www.ncparks.gov/mount-mitchell-state-park/home) are not included in this data set. As noted at https://www.ncparks.gov/find-a-park :
 
     >There are 41 places that are currently part of the North Carolina State Parks system: 34 parks, four recreation areas, and three staffed state natural areas.
 
-2. Some campsites are not reservable. Some may not be reservable in the off season, so by definition, use of these sites will not show up in this data set.
+2. Some campsites are not reservable, and some may not be reservable in the off season. So by definition, use of these sites will not show up in this data set.
 
-3. As is visible in the per-campground trend data starting with [camping person-nights by park], there are a lot of outliers in the data in 2018, 2019, and 2020. Likely there are two causes: 
+3. Some campsites have become reservable during the years covered in this data set. For example, the NPS campgrounds at Cape Hatteras: Oregon Inlet and Frisco started taking reservations in 2015, and Cape Point started in 2016. Including these campgrounds unduly inflates the mulit-year growth rate.
+
+4. As is visible in the per-campground trend data starting with [camping person-nights by park], there are a lot of outliers in the data in 2018, 2019, and 2020. Likely there are two causes: 
     - Data for 2018 and first half of 2019 are less reliable than other years as explained in the 2018 history readme:
 
         >Due to the transition between Rec.gov vendors the FY 2018 historical reservation data has not been fully verified for accuracy and completeness.
 
-    - In 2020 due the the COVID-19 pandemic, people changed their behavior significantly, and camping facilities were closed for some periods of the year. For example, I can imagine that group campsites would be used less frequently, and group size would be much smaller than earlier years.
+    - In 2020 due the the COVID-19 pandemic, people changed their behavior significantly, and camping facilities were closed for some periods of the year. For example, I assume that group campsites were used less frequently, and group size was smaller than earlier years.
 
-4. As noted at [trailandsummit.com](https://trailandsummit.com/every-type-of-campsite-defined-camping-faqs/) the definition of "standard", "tent" and "RV" overlap, which means counts and trends below that distinguish among these categories may not reflect the experience of campers, for example, in the available of a campsite *for them*:
+5. As noted at [trailandsummit.com](https://trailandsummit.com/every-type-of-campsite-defined-camping-faqs/) the definition of "standard", "tent" and "RV" overlap, which means counts and trends below that distinguish among these categories may not reflect the experience of campers, for example, in the availability of a campsite *for them*:
 
     >In most campgrounds, the term “standard campsite” is interchangeable with a “basic campsite.” Like basic sites, standard campsites usually have a driveway, a picnic table, and a fire ring or grill, and are normally reserved for groups of 6 people or less. Depending on the type of campground, standard sites may be suitable for tents or RVs, though they’re mostly used by tent campers. This is because most standard sites have driveways that are only suitable for smaller campers and campervans. That being said, in RV-only campgrounds, standard campsites may refer to a site where you get everything listed above, plus a simple electric hookup, but no water or sewer.
 
@@ -1036,11 +1014,11 @@ Part 2:
 ## Are there trends by day of the week?
 
 ```{r camp-by-dow, fig.width=8}
-
-nc_history_dow %>%
+#nc_history_dow
+nc_history_detail %>%
   filter(year >= year_lower_bound) %>%
-  count(season, dow = all_days_string) %>%
-  mutate(dow = factor(dow, levels = dow_labels),
+  count(season, dow = day_label) %>%
+  mutate(#dow = factor(dow, levels = dow_labels),
          dow_scaled = n / max(n)) %>%
   ggplot(aes(dow, n, fill = season)) + #dow_scaled)) +
   geom_col() + 
@@ -1053,8 +1031,8 @@ nc_history_dow %>%
   scale_fill_viridis_d(end = 0.92) +
   theme(panel.grid.major.x = element_blank()) +
   labs(title = "NC camping each night of the week",
-       subtitle = glue("Midweek is about half as busy as on the weekend",
-                       "\nAll nights {year_min}-{year_max}"),
+       # subtitle = glue("Midweek is about half as busy as on the weekend",
+       #                 "\nAll nights {year_min}-{year_max}"),
        x = "",
        y = "person-nights")
 
@@ -1065,11 +1043,12 @@ nc_history_dow %>%
 The increasing yearly number of person-nights occurred for all nights. The most noticeable anomaly is extra Sunday, Monday and Tuesday night camping in 2020. Presumably this was due to the pandemic shutdown, perhaps because people had fewer recreational options than other years. The unusually low off-season 2020 numbers probably reflect camp closures.
 
 ```{r camp-by-dow-season, fig.height=8}
-nc_history_dow %>%
+nc_history_detail %>%
+#nc_history_dow %>%
   filter(year >= year_lower_bound) %>%
-  count(year, season, dow = all_days_string) %>%
+  count(year, season, dow = day_label) %>%
   mutate(year = factor(year),
-         dow = factor(dow, levels = dow_labels),
+         #dow = factor(dow, levels = dow_labels),
          dow_scaled = n / max(n)) %>%
   ggplot(aes(dow, n, color = year, group = year)) + 
   geom_line() + 
@@ -1085,7 +1064,7 @@ nc_history_dow %>%
   theme(panel.grid.major.x = element_blank()) +
   guides(color = guide_legend(reverse = TRUE)) +
   labs(title = "NC camping each night of the week (person-nights)",
-       subtitle = glue("Midweek is about half as busy as on the weekend {year_min}-{year_max}"),
+       #subtitle = glue("Midweek is about half as busy as on the weekend {year_min}-{year_max}"),
        x = "")
 
 ```
@@ -1772,7 +1751,7 @@ product_id_counts %>%
 
 ## NC Inventory added to recreation.gov
 
-It seems recreation.gov included existing NC inventory by the end of 2008. So we will start with `r year_lower_bound` in most cases.
+It seems recreation.gov included existing reservable NC inventory by the end of 2008. So we will start with `r year_lower_bound` in most cases. Note that some existing campsites were added later when they became reservable, for example the NPS campgrounds at Cape Hatteras: Oregon Inlet and Frisco started taking reservations in 2015, and Cape Point started in 2016 (at the end of 2021 Camp Point was taking same-day reservations only according to https://www.nps.gov/caha/planyourvisit/campgrounds.htm).
 
 ```{r}
 parks_nc_all_years_overnight_for_plot <- park_years %>%
@@ -1926,8 +1905,6 @@ parks_all_years_overnight_for_plot %>%
 <br>
 
 ```{r usa-by-state}
-# TODO: might be interesting to normalize n_parks by state population or area
-
 park_years %>%
   filter(start_year == 2020) %>%
   distinct(facility_state, facility_id, site_type_simple, .keep_all = TRUE) %>%
@@ -1970,3 +1947,22 @@ In contrast: Great Smokey Mountain National Park campgrounds are all reservable.
 Some recreation areas allow camping; only two in the data set are reservable; they are not included here.
 
 <br>
+
+## Possible future work
+
+* Look at growth only in facilities + site_type_simple that existed in 2009. This would avoid adding to the growth rate due to facilities that converted camp sites to reservable during the years of interest (and thus started showing up in the data).
+
+* As noted in [What's possible given these data sets?] the site-type categories {standard, tent, rv} overlap. I could recategorize standard sites to tent camping except in RV-only campsites, in which case I would allocate them to rv camping.
+
+* In time series analysis, 
+
+    - Use percent of max_occupancy on each day for each facility_name + site_type_simple. Is that more interesting/helpful than overnight counts? It would normalize for number of sites. However, the max_occupancy for some facilities + site_type_simple is quite low (for example, two or three group sites in a campground). Will STL find it difficult if there are large steps in the percent max_occupancy values?
+    
+    - Would a hierarchical time series model be helpful? We could use facility_id_group as the higher-level series and keep using facility_name + site_type_simple as the lower-level series.
+
+* Look at trends by loc_mountains and/or loc_coast. Presumably the period of high occupancy will be more narrow in the mountains
+
+* For full-USA view, it might be interesting to normalize n_parks and/or n_sights by state population or state area to see which sites have a relative abundance or lack of federal campgrounds and/or campsites.
+
+* Use bookdown instead to create separate pages for each major section
+
