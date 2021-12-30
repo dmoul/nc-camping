@@ -320,6 +320,14 @@ nc_camping_person_nights_and_revenue_site_type %>%
 
 <br>
 
+# Rationale
+
+Multi-level aka hierarchical models are harder to understand and harder to compare. Can I construct a model that is arguably better than others in describing the dynamics in NC camping, modeling `n_reservation` ~ `year`? The more reservations, the more `person-nights` and the more `revenue_in_year`, all other things reasonably consistent.
+
+I will start with simple linear models in fit0, intercept-only models in fit1, then proceed to hierarchical models, ending with two-group hierarchical models in fit4. I will start with linear models with lm(), then move to multi-level models with lmer(), then use Stan via brm() to do it the Bayesian way, which makes model comparison easier.
+
+<br>
+
 # Some simple models
 
 ## Reservations
@@ -1122,15 +1130,15 @@ ppc_dens_overlay(y.4b, yrep.4b[1:50, ]) +
 
 <br>
 
-$y$ definitely is not gaussian.
+The posterior distribution $y$ definitely is not Gaussian.
 
 <br>
 
-## Priors
+# Thinking about priors
 
 How to improve predictions?
 
-* Set better priors
+* Set better priors to get posterior predictive check distribution closer to reality.
 * What else?
 
 ```{r}
@@ -1144,4 +1152,189 @@ prior_summary(fit4b.reservations)
 options(width = 150)
 ```
 
+<br>
+
+## What is this posterior predictive distribution anyway?
+
+
+### Is is like negative binomial?
+
+Since n_reservations is an unbounded count, perhaps negative binomial? Nope.
+
+```{r}
+# with starter code from A Solomon Kurz's pa652 statistical analysis lecture materials
+# at https://osf.io/3g8vf/
+# 16. GLM: Unbounded counts with the negative binomial
+
+# using MASS but calling function directly rather than loading MASS, since MASS::select() conflicts with dplyr::select()
+
+n <- 10000
+mu <- 5000
+
+set.seed(1)
+
+d <-
+  tibble(phi = c(1, 5, 50, 500, 5000)) %>% 
+  mutate(y = map(phi, ~ MASS::rnegbin(n = n, mu = mu, theta = .))) %>% 
+  unnest(y) 
+
+d %>% 
+  ggplot(aes(x = y)) +
+  geom_bar(fill = "chartreuse") +
+  facet_wrap(~ phi, labeller = label_both, scales = "free")
+```
+
+<br>
+
+### Is it like Poisson?
+
+Or perhaps Poisson?  Nope.
+
+```{r}
+
+# with starter code from A Solomon Kurz's pa652 statistical analysis lecture materials
+# at https://osf.io/3g8vf/
+# 15. GLM: Unbounded counts with the Poisson
+
+tibble(lambda = c(0.25, 0.5, 1, 2.5, 5, 10, 20, 40, 80)) %>% 
+  mutate(count = map(lambda, ~ rpois(n = 10000, lambda = .))) %>% 
+  unnest(count) %>% 
+  
+  ggplot(aes(x = count)) +
+  geom_bar() +
+  scale_y_continuous(NULL, breaks = NULL) +
+  facet_wrap(~ lambda, scales = "free", labeller = label_both)
+```
+
+<br>
+
+## Priors for our parameters
+
+But none of the above are really helpful, since I need to model the parameters in the ***model***, not the ***posterior distribution***.
+
+Let's consider fit4b.reservations, where `site_type_simple` and `facility_name_original` are the groups in the hierarchical model.
+
+Across all facilities, the site types' growth curves and their magnitudes vary considerably:
+
+```{r fig.height=4, fig.width=10}
+nc_camping_person_nights_and_revenue_site_type %>%
+  group_by(year, site_type_simple) %>%
+  summarize(n_reservations = sum(n_reservations)) %>%
+  ungroup() %>%
+  mutate(site_type_simple = fct_reorder(site_type_simple, n_reservations),
+         year = year + year_lower_bound - 1) %>% #view()
+  ggplot(aes(x = year, y = n_reservations, fill = site_type_simple)) +
+  geom_area() +
+  scale_x_continuous(labels = label_number(accuracy = 1, big.mark = ""),
+                     breaks = (1:5) * 2 + 2008) +
+  scale_y_continuous(labels = label_number_si()) +
+  scale_fill_viridis_d(end = 0.92, direction = -1) +
+  facet_grid(. ~ site_type_simple) +
+  theme(legend.position = "bottom") +
+  labs(title = "NC camping n_reservations",
+       subtitle = glue("{year_lower_bound}-{year_end}"),
+       x = NULL,
+       fill = "Site type")
+```
+
+<br>
+
+Similarly, they vary widely across facilities:
+
+```{r fig.height=30, fig.width=10}
+nc_camping_person_nights_and_revenue_site_type %>%
+  group_by(year, facility_name_original, site_type_simple) %>%
+  summarize(n_reservations = sum(n_reservations)) %>%
+  ungroup() %>%
+  mutate(facility_name_original = fct_reorder(facility_name_original, -n_reservations, sum),
+         year = year + year_lower_bound - 1) %>% #view()
+  ggplot(aes(x = year, y = n_reservations, fill = site_type_simple)) +
+  geom_area() +
+  scale_x_continuous(labels = label_number(accuracy = 1, big.mark = ""),
+                     breaks = (1:5) * 2 + 2008) +
+  scale_y_continuous(labels = label_number_si()) +
+  scale_fill_viridis_d(end = 0.92, direction = -1) +
+  facet_wrap(. ~ facility_name_original, ncol = 4, scales = "free_y") +
+  theme(legend.position = "top") +
+  labs(title = "NC camping n_reservations",
+       subtitle = glue("Y scale varies. {year_lower_bound}-{year_end}"),
+       x = NULL,
+       fill = "Site type")
+```
+
+<br>
+
+Faceting by both in a grid:
+
+```{r fig.height=60, fig.width=10}
+nc_camping_person_nights_and_revenue_site_type %>%
+  group_by(year, facility_name_original, site_type_simple) %>%
+  summarize(n_reservations = sum(n_reservations)) %>%
+  ungroup() %>%
+  mutate(facility_name_original = fct_reorder(facility_name_original, -n_reservations, sum),
+         year = year + year_lower_bound - 1) %>% #view()
+  ggplot(aes(x = year, y = n_reservations, fill = site_type_simple)) +
+  geom_area() +
+  scale_x_continuous(labels = label_number(accuracy = 1, big.mark = ""),
+                     breaks = (1:5) * 2 + 2008) +
+  scale_y_continuous(labels = label_number_si()) +
+  scale_fill_viridis_d(end = 0.92, direction = -1) +
+  facet_grid(facility_name_original ~ site_type_simple, scales = "free_y") + #, ncol = 4, scales = "free_y") +
+  theme(legend.position = "top") +
+  labs(title = "NC camping n_reservations",
+       subtitle = glue("Y scale varies. {year_lower_bound}-{year_end}"),
+       x = NULL,
+       fill = "Site type")
+```
+
+<br>
+
+### Person-nights and revenue_in_year
+
+```{r fig.height=30, fig.width=10}
+nc_camping_person_nights_and_revenue_site_type %>%
+  group_by(year, facility_name_original, site_type_simple) %>%
+  summarize(person_nights = sum(person_nights)) %>%
+  ungroup() %>%
+  mutate(facility_name_original = fct_reorder(facility_name_original, -person_nights, sum),
+         year = year + year_lower_bound - 1) %>% #view()
+  ggplot(aes(x = year, y = person_nights, fill = site_type_simple)) +
+  geom_area() +
+  scale_x_continuous(labels = label_number(accuracy = 1, big.mark = ""),
+                     breaks = (1:5) * 2 + 2008) +
+  scale_y_continuous(labels = label_number_si()) +
+  scale_fill_viridis_d(end = 0.92, direction = -1) +
+  facet_wrap(. ~ facility_name_original, ncol = 4, scales = "free_y") +
+  theme(legend.position = "top") +
+  labs(title = "NC camping person_nights",
+       subtitle = glue("Y scale varies. {year_lower_bound}-{year_end}"),
+       x = NULL,
+       fill = "Site type")
+```
+
+<br>
+
+```{r fig.height=30, fig.width=10}
+nc_camping_person_nights_and_revenue_site_type %>%
+  group_by(year, facility_name_original, site_type_simple) %>%
+  summarize(revenue_in_year = sum(revenue_in_year)) %>%
+  ungroup() %>%
+  mutate(facility_name_original = fct_reorder(facility_name_original, -revenue_in_year, sum),
+         year = year + year_lower_bound - 1) %>% #view()
+  ggplot(aes(x = year, y = revenue_in_year, fill = site_type_simple)) +
+  geom_area() +
+  scale_x_continuous(labels = label_number(accuracy = 1, big.mark = ""),
+                     breaks = (1:5) * 2 + 2008) +
+  #scale_y_continuous(labels = label_number_si(), prefix = "$") +
+  scale_y_continuous(labels = label_dollar(scale = .001, suffix = "K")) +
+  scale_fill_viridis_d(end = 0.92, direction = -1) +
+  facet_wrap(. ~ facility_name_original, ncol = 4, scales = "free_y") +
+  theme(legend.position = "top") +
+  labs(title = "NC camping revenue_in_year",
+       subtitle = glue("Y scale varies. {year_lower_bound}-{year_end}"),
+       x = NULL,
+       fill = "Site type")
+```
+
+<br>
 <br>
