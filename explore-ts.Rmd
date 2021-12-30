@@ -1,0 +1,549 @@
+---
+title: "Explore time series (experimental)"
+author: "Daniel Moul"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    #theme: united
+    #code_folding: show
+---
+
+<br>
+
+***This is an experimental script. See nc-camping-writeup.Rmd for the main write-up. It's OK to run this script in its entirely.***
+
+<br>
+
+```{r setup, include=FALSE}
+library(here)
+source(here("scripts", "my-setup.R"))
+
+library(tsibble)
+library(feasts)
+library(fable)
+
+# library(lme4)
+# library(broom.mixed)
+
+# following https://mc-stan.org/cmdstanr/articles/cmdstanr.html
+# we recommend running this is a fresh R session or restarting your current session
+# install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
+# installed cmdstan: Since check_cmdstan_toolchain() was good, I ran install_cmdstan(cores = 4)
+# got this result: CmdStan path set to: /Users/dmoul/.cmdstanr/cmdstan-2.28.2
+# library(brms)
+# library(cmdstanr)
+# library(posterior)
+# library(bayesplot)
+# color_scheme_set("brightblue")
+
+mc.cores = 4 # used by defaul by brm() and loo()
+
+#knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+knitr::opts_chunk$set(echo = TRUE, warning = TRUE, message = TRUE)
+
+year_end <- 2019
+
+```
+
+<!-- enable horizontal scrolling in chunk output -->
+<!-- following https://github.com/yihui/rmarkdown-cookbook/issues/111 -->
+<style>
+pre {
+  overflow-x: auto;
+}
+pre code {
+  word-wrap: normal;
+  white-space: pre;
+}
+</style>
+
+```{r read-target-objects, echo=FALSE}
+nc_history <- tar_read(nc_camping_history) %>%
+  mutate(
+    facility_name = case_when(
+      #str_detect(facility_name, "Cheoah Point Cabin \\d")                                     ~ "Cheoah Point Cabins",
+      str_detect(facility_name, "Big Creek Campground \\(Great Smoky Mountains National Park\\)") ~ "Big Creek Campground",
+      #str_detect(facility_name, "Cove Creek [Upper|Lower] Group Camp")                        ~ "Cove Creek Group Camp",
+      str_detect(facility_name, "Curtis Creek Campground \\(Nc\\)")                           ~ "Curtis Creek Campground",
+      TRUE                                                                                    ~ facility_name
+    ),
+    # Fix an error
+    facility_latitude = if_else(facility_name == "Cape Point Campground", 35.235278, facility_latitude),
+    facility_longitude = if_else(facility_name == "Cape Point Campground", -75.535278, facility_longitude),
+    # We'll use this a lot, so let's create it once
+    year = year(start_date)
+  )
+
+nc_parks_site_types <- nc_history %>%
+  mutate(
+      name_first_word = str_extract(facility_name, "\\w+")
+  ) %>%
+  # slice_sample(n = 1e5) %>% # for testing
+  # This works because each first word is unique--it probably wouldn't work if looking at whole USA
+  group_by(name_first_word) %>%
+  mutate(facility_id_group = cur_group_id()
+  ) %>%
+  ungroup() %>%
+  group_by(facility_id_group, site_type_simple) %>%
+  mutate(n_sites = n_distinct(product_id)) %>%
+  ungroup() %>%
+  ##distinct(name_first_word, facility_id_group, site_type_simple, .keep_all = TRUE) %>%
+  distinct(facility_id_group, facility_id, site_type_simple, .keep_all = TRUE) %>%
+  select(name_first_word, facility_id, facility_name, facility_type_description, site_type_simple, facility_id_group, n_sites) %>%
+  group_by(facility_id_group) %>%
+  mutate(facility_name = as.list(facility_name),
+         facility_name = glue_collapse(unique(facility_name), sep = " + "),
+         facility_id_list = as.list(facility_id),
+         facility_id_list = glue_collapse(unique(facility_id_list), sep = ", ")
+  ) %>%
+  ungroup() %>%
+  arrange(facility_name, site_type_simple)
+# one row for each facility_name (combined) and site_type_simple
+# for cases where only the facility_name ang or facility_group_id matters, use distinct()
+
+# one row for each overnight stay (includes day of week (dow))
+nc_history_detail <- tar_read(nc_camping_history_detail) %>%
+  mutate(year = year(start_date))
+# nc_history_dow <- tar_read(nc_camping_history_dow) %>%
+#   mutate(year = year(start_date))
+
+nc_yday <- tar_read(nc_camping_history_yday)
+
+```
+
+```{r}
+nc_camping_person_nights_and_revenue <- nc_history %>%
+  mutate(year = year(start_date)) %>%
+  filter(between(year, year_lower_bound, year_end),
+         !str_detect(site_type, "management")) %>%
+  rename(facility_name_original = facility_name) %>%
+  mutate(facility_first_word = str_extract(facility_name_original, "\\w+"),
+         year = year - year_lower_bound + 1) %>% # year 1 is 2009
+  inner_join(.,
+             nc_parks_site_types %>%
+               select(facility_id_group, facility_name, facility_id_list) %>%
+               mutate(facility_first_word = str_extract(facility_name, "\\w+")),
+             by = "facility_first_word") %>%
+  filter(!str_detect(site_type, "management")) %>%
+  group_by(year, facility_name) %>%
+  summarize(n_overnight = n(),
+            revenue_in_year = sum(total_paid, na.rm = TRUE),
+            person_nights = sum(person_nights)
+            ) %>%
+  ungroup() %>%
+  mutate(n_overnight_c = n_overnight - mean(n_overnight),
+            revenue_in_year_c = revenue_in_year - mean(revenue_in_year),
+            person_nights_c = person_nights - mean(person_nights)
+  )
+
+```
+
+```{r}
+nc_camping_person_nights_and_revenue_site_type <- nc_history %>%
+  mutate(year = year(start_date)) %>%
+  filter(between(year, year_lower_bound, year_end),
+         !str_detect(site_type, "management")) %>%
+  rename(facility_name_original = facility_name) %>%
+  mutate(facility_first_word = str_extract(facility_name_original, "\\w+"),
+         year = year - year_lower_bound + 1) %>% # year 1 is 2009
+  inner_join(.,
+             nc_parks_site_types %>% 
+               select(facility_id_group, facility_name, facility_id_list) %>%
+               mutate(facility_first_word = str_extract(facility_name, "\\w+")),
+             by = "facility_first_word") %>%
+  group_by(year, facility_name_original, facility_id, facility_id_list, 
+           facility_first_word, facility_name, facility_id_group, 
+           site_type_simple) %>%
+  summarize(n_overnight = n(), 
+            revenue_in_year = sum(total_paid, na.rm = TRUE),
+            person_nights = sum(person_nights)
+            ) %>%
+  ungroup() %>%
+  mutate(n_overnight_c = n_overnight - mean(n_overnight),
+         revenue_in_year_c = revenue_in_year - mean(revenue_in_year),
+         person_nights_c = person_nights - mean(person_nights),
+         log_n_overnight = log(n_overnight)
+  )
+
+# note: centered values ("_c") are differences from the mean
+```
+
+<br>
+
+Make tsibble
+
+```{r}
+reservations_ts <- nc_history_detail %>%
+  filter(year >= year_lower_bound,
+         year <= year_end) %>%
+  select(start_date, nights) %>%
+  group_by(start_date) %>%
+  summarize(n_overnight = n()) %>% # number of sites booked overnight
+  ungroup() %>%
+  as_tsibble() %>%
+  fill_gaps(n_overnight = 0L)
+
+# TODO: add person-nights; add facility_name, add region (mountain, piedmont, coast)
+```
+
+Considering the years `r year_lower_bound` - `r year_end`.
+
+The trend is quite remarkable:
+
+```{r fig.height=10, fig.width=10}
+dcmp <- reservations_ts %>%
+  model(STL(n_overnight ~ season(window = Inf)))
+
+components(dcmp) %>%
+  autoplot() +
+  scale_y_continuous(labels = scales::label_number_si())
+```
+
+<br>
+
+And the remainder above is a lot smaller than below, where I constrain the seasonality to only one of its sources:
+
+```{r fig.height=10, fig.width=10}
+dcmp_week <- reservations_ts %>%
+  model(STL(n_overnight ~ season(period = "1 week")))
+
+components(dcmp_week) %>%
+  autoplot() +
+  scale_y_continuous(labels = scales::label_number_si())
+```
+
+<br>
+
+```{r fig.height=10, fig.width=10}
+dcmp_month <- reservations_ts %>%
+  model(STL(n_overnight ~ season(period = "1 month")))
+
+components(dcmp_month) %>%
+  autoplot() +
+  scale_y_continuous(labels = scales::label_number_si())
+```
+
+<br>
+
+```{r fig.height=10, fig.width=10}
+dcmp_year <- reservations_ts %>%
+  model(STL(n_overnight ~ season(period = "1 year")))
+
+components(dcmp_year) %>%
+  autoplot() +
+  scale_y_continuous(labels = scales::label_number_si())
+```
+
+<br>
+
+```{r fig.height=10, fig.width=10}
+dcmp_day <- reservations_ts %>%
+  model(STL(n_overnight ~ season(period = "1 day")))
+
+components(dcmp_day) %>%
+  autoplot() +
+  scale_y_continuous(labels = scales::label_number_si())
+```
+<br>
+<br>
+
+```{r}
+#my_features <- 
+reservations_ts %>% features(n_overnight, feat_stl) %>%
+  gt()
+```
+
+<br><br>
+
+# Considering the years `r year_lower_bound` - `r year_end`.
+
+The trend is quite remarkable:
+
+```{r}
+nc_history_ts <- nc_history_detail %>%
+  mutate(year = year(overnight_date)) %>%
+  filter(year >= year_lower_bound,
+         year <= year_end,
+         site_type_simple != "management") %>%
+  group_by(facility_name, site_type_simple, overnight_date) %>%
+  summarize(n_overnight = n()) %>% # number of sites booked overnight
+  ungroup() %>%
+  as_tsibble(key = c(facility_name, site_type_simple), index = overnight_date) %>%
+  fill_gaps(n_overnight = 0L)
+```
+
+```{r eval=FALSE}
+# can I consolidate nc_history_dow and nc_history_detail?
+# Both have 1878426 rows while nc_history_detail includes more information about each row (facility name, site_type_simple, etc.) 
+# nc_history_detail does not include all_days, which is the number corresponding to each date.
+# nc_history_detail does not have dow distributed across the rows (all rows for an order list all days)
+
+nc_history_dow_col_names <- colnames(nc_history_dow) # %>%
+    #                                select(-c(path, entity_type, use_type, site_type, agency:parent_location, 
+    #                                          customer_zip:total_before_tax, org_facility_id:keywords))
+    # )
+nc_history_detail_col_names <- colnames(nc_history_detail)
+
+setdiff(nc_history_dow_col_names, nc_history_detail_col_names)
+# note: order of vectors is significant. This doesn't tell us what we want to know
+
+# library(arsenal)
+# df_compare <- arsenal::comparedf(nc_history %>% 
+#                      select(-c(path, entity_type, use_type, site_type, agency:parent_location, 
+#                                customer_zip:total_before_tax, org_facility_id:keywords)),
+#                    nc_history_detail
+#                    )
+# 
+# summary(df_compare)
+# This is row-level info; I'm more interested in column-level info, which is a lot less info
+
+# Are order numbers unique? No
+order_number_count <- count(nc_history, order_number, sort = TRUE, name = "n_orders")
+
+#How many non-unique orders?
+nrow(nc_history) - nrow(order_number_count)
+
+# how many orders use an order number that has already been used?
+order_number_count %>%
+  filter(n_orders > 1) %>%
+  summarize(n_orders_duplicate = sum(n_orders) - nrow(.))
+
+# What does it mean to have a duplicated order number? For example, if I book multiple sites at one time, will the order_number be duplicated? YES
+# If so, does that account for all cases?
+# YES that seems to be the case. Note that it seems one can modify an order at a later date to add another site to the order
+# xx <- nc_history %>%
+#   arrange(order_number, start_date)
+# xx_dup <- duplicated(xx$order_number)
+# xx_dup_df <- xx[xx_dup, ]
+```
+
+```{r fig.height=10, fig.width=30}
+dcmp <- nc_history_ts %>%
+  model(STL(n_overnight ~ season(window = Inf)))
+
+components(dcmp) %>%
+  autoplot() +
+  scale_y_continuous(labels = scales::label_number_si()) +
+  theme(legend.position = "none") #+
+  #labs(title = "ABC")
+  #theme_update(base_size = 11)
+```
+
+<br>
+
+```{r}
+nc_history_ts_features <- nc_history_ts %>%
+  features(n_overnight, feat_stl)
+
+nc_history_ts_features_means <- nc_history_ts_features %>%
+  select(facility_name, site_type_simple, trend_strength, seasonal_strength_week) %>%
+  group_by(site_type_simple) %>%
+  summarize(across(c(trend_strength, seasonal_strength_week), median)) %>%
+  ungroup()
+```
+
+<br>
+
+Facilities with the strongest trends:
+
+<br>
+
+```{r}
+top_trends <- nc_history_ts_features %>%
+  slice_max(order_by = trend_strength, n= 5) %>%
+  select(facility_name, site_type_simple, trend_strength) 
+
+top_trends %>%
+  gt() %>%
+  fmt_number(columns = trend_strength)
+  
+```
+
+
+<br><br>
+
+```{r fig.width=12}
+dcmp_top_trends <- inner_join(
+  dcmp,
+  top_trends %>% select(c(facility_name, site_type_simple)),
+  by = c("facility_name", "site_type_simple")
+)
+
+components(dcmp_top_trends) %>%
+  autoplot() +
+  scale_y_continuous(labels = scales::label_number_si()) +
+  labs(title = "STL decomposition of top 5 facilities with largest trend_strength")
+```
+
+<br>
+
+The various site types have different seasonality and trend dynamics
+
+***TODO: why is features(n_overnight, feat_stl) providing seasonal_trend_week but not seasonal_trend_year?***
+
+```{r}
+ggplot() +
+  geom_point(data = nc_history_ts_features %>% select(-site_type_simple), 
+             aes(x = trend_strength, y = seasonal_strength_week),
+             alpha = 0.1) +
+  geom_point(data = nc_history_ts_features,
+             aes(x = trend_strength, y = seasonal_strength_week, col = site_type_simple)
+             ) + 
+  geom_point(data = nc_history_ts_features_means,
+             aes(x = trend_strength, y = seasonal_strength_week, col = site_type_simple),
+             shape = 3, size = 5
+             ) + 
+  facet_wrap(vars(site_type_simple)) +
+  theme(legend.position = "none") +
+  labs(title = "Seasonality by trend strength",
+       subtitle = "means indicated by +")
+```
+
+<br>
+
+Standard and tent sites show the most seasonal variation as well as the strongest trend growth.
+
+```{r}
+ggplot() +
+  geom_point(data = nc_history_ts_features_means,
+             aes(x = trend_strength, y = seasonal_strength_week, col = site_type_simple),
+             shape = 3, size = 5
+             ) + 
+  scale_color_brewer(type = "qual") +
+  expand_limits(x = 0, y = 0) +
+  theme(legend.position = "bottom") +
+  labs(title = "Standard and tent sites show the most seasonality\n(biggest differences weekend v weekday)")
+```
+
+<br>
+
+```{r fig.height=4, fig.width=4}
+nc_history_ts_features %>%
+  sample_n(10) %>%
+  arrange(-trend_strength) %>%
+  gt() %>%
+  fmt_number(columns = c(trend_strength, seasonal_strength_week, 
+                         spikiness, linearity, curvature, starts_with("stl_")),
+             decimals = 2)
+
+```
+
+<br><br>
+
+***TODO: Decide if this plot adds value:***
+
+```{r fig.height=15, fig.width=10}
+facility_subset <- sample(unique(nc_history$facility_name), 10)
+
+g <- nc_history_ts %>%
+  filter(facility_name %in% facility_subset) %>%
+  gg_season(alpha = 0.5) +
+  scale_color_viridis_c(end = 0.8) +
+  facet_grid(facility_name ~site_type_simple, scales = "free_y") #+
+  #theme(legend.position = "none")
+
+g 
+
+ggsave("./figures/seasonality-by-site-type-and-facility.png",
+       plot = g,
+       height = 15, width = 10, limitsize = FALSE,
+       bg = "white", #dpi = 600
+       )
+```
+
+<br>
+
+```{r}
+nc_history_ts_quantiles <- nc_history_ts %>%
+  features(n_overnight, quantile) 
+
+nc_history_ts_quantiles %>%
+  gt() %>%
+  fmt_number(columns = 3:7,
+             decimals = 0)
+
+# TODO quantiles of percent max occupancy
+# 
+```
+
+<br><br>
+
+```{r}
+nc_history_ts_acf <- nc_history_ts %>%
+  features(n_overnight, feat_acf) 
+
+# OK but what are these telling us in the context of our data? 
+# https://otexts.com/fpp3/acf-features.html is a bit brief on interpretation
+
+```
+
+Once I understand more about what acf1 and season_acf1 indicate, this might tell me something interesting:
+
+```{r}
+
+#nc_history_ts_acf %>%
+  ggplot() +
+  geom_point(data = nc_history_ts_acf %>% select(-site_type_simple), 
+             aes(x = acf1, y = season_acf1),
+             alpha = 0.1) +
+  geom_point(data = nc_history_ts_acf,
+             aes(x = acf1, y = season_acf1, col = site_type_simple)
+  ) +
+  facet_wrap( ~ site_type_simple) +
+  theme(legend.position = "none") +
+  labs(title = "<add title here>")
+  
+  # nc_history_ts_features <- nc_history_ts %>%
+  # features(n_overnight, feat_stl) 
+```
+
+<br>
+
+```{r}
+
+# with acf10
+
+  ggplot() +
+  geom_point(data = nc_history_ts_acf %>% select(-site_type_simple), 
+             aes(x = acf10, y = season_acf1),
+             alpha = 0.1) +
+  geom_point(data = nc_history_ts_acf,
+             aes(x = acf10, y = season_acf1, col = site_type_simple)
+  ) +
+  facet_wrap( ~ site_type_simple) +
+  theme(legend.position = "none") +
+  labs(title = "<add title here>")
+  
+  # nc_history_ts_features <- nc_history_ts %>%
+  # features(n_overnight, feat_stl) 
+```
+
+<br>
+
+```{r}
+
+  ggplot() +
+  geom_point(data = nc_history_ts_acf %>% select(-site_type_simple), 
+             aes(x = acf1, y = acf10),
+             alpha = 0.1) +
+  geom_point(data = nc_history_ts_acf,
+             aes(x = acf1, y = acf10, col = site_type_simple)
+  ) +
+  facet_wrap( ~ site_type_simple) +
+  theme(legend.position = "none") +
+  labs(title = "<add title here>")
+  
+  # nc_history_ts_features <- nc_history_ts %>%
+  # features(n_overnight, feat_stl) 
+```
+
+<br>
+
+# TODO
+
+* Use methods appropriate for low numbers of integer counts.  See https://otexts.com/fpp3/counts.html :
+
+> All of the methods discussed in this book assume that the data have a continuous sample space. But often data comes in the form of counts. For example, we may wish to forecast the number of customers who enter a store each day.... In practice, this rarely matters provided our counts are sufficiently large...  However, if our data contains small counts...then we need to use forecasting methods that are more appropriate for a sample space of non-negative integers. Such models are beyond the scope of this book.
