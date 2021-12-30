@@ -87,12 +87,12 @@ nc_parks_site_types <- nc_history %>%
   mutate(facility_id_group = cur_group_id()
   ) %>%
   ungroup() %>%
-  group_by(facility_id_group, site_type_simple) %>%
+  group_by(facility_id_group, site_type) %>%
   mutate(n_sites = n_distinct(product_id)) %>%
   ungroup() %>%
-  ##distinct(name_first_word, facility_id_group, site_type_simple, .keep_all = TRUE) %>%
-  distinct(facility_id_group, facility_id, site_type_simple, .keep_all = TRUE) %>%
-  select(name_first_word, facility_id, facility_name, facility_type_description, site_type_simple, facility_id_group, n_sites) %>%
+  ##distinct(name_first_word, facility_id_group, site_type, .keep_all = TRUE) %>%
+  distinct(facility_id_group, facility_id, site_type, .keep_all = TRUE) %>%
+  select(name_first_word, facility_id, facility_name, facility_type_description, site_type, facility_id_group, n_sites) %>%
   group_by(facility_id_group) %>%
   mutate(facility_name = as.list(facility_name),
          facility_name = glue_collapse(unique(facility_name), sep = " + "),
@@ -100,8 +100,8 @@ nc_parks_site_types <- nc_history %>%
          facility_id_list = glue_collapse(unique(facility_id_list), sep = ", ")
   ) %>%
   ungroup() %>%
-  arrange(facility_name, site_type_simple)
-# one row for each facility_name (combined) and site_type_simple
+  arrange(facility_name, site_type)
+# one row for each facility_name (combined) and site_type
 # for cases where only the facility_name ang or facility_group_id matters, use distinct()
 
 # one row for each overnight stay (includes day of week (dow))
@@ -156,7 +156,7 @@ nc_camping_person_nights_and_revenue_site_type <- nc_history %>%
              by = "facility_first_word") %>%
   group_by(year, facility_name_original, facility_id, facility_id_list, 
            facility_first_word, facility_name, facility_id_group, 
-           site_type_simple) %>%
+           site_type) %>%
   summarize(n_overnight = n(), 
             revenue_in_year = sum(total_paid, na.rm = TRUE),
             person_nights = sum(person_nights)
@@ -267,17 +267,17 @@ nc_history_ts <- nc_history_detail %>%
   mutate(year = year(overnight_date)) %>%
   filter(year >= year_lower_bound,
          year <= year_end,
-         site_type_simple != "management") %>%
-  group_by(facility_name, site_type_simple, overnight_date) %>%
+         site_type != "management") %>%
+  group_by(facility_name, site_type, overnight_date) %>%
   summarize(n_overnight = n()) %>% # number of sites booked overnight
   ungroup() %>%
-  as_tsibble(key = c(facility_name, site_type_simple), index = overnight_date) %>%
+  as_tsibble(key = c(facility_name, site_type), index = overnight_date) %>%
   fill_gaps(n_overnight = 0L)
 ```
 
 ```{r eval=FALSE}
 # can I consolidate nc_history_dow and nc_history_detail?
-# Both have 1878426 rows while nc_history_detail includes more information about each row (facility name, site_type_simple, etc.) 
+# Both have 1878426 rows while nc_history_detail includes more information about each row (facility name, site_type, etc.) 
 # nc_history_detail does not include all_days, which is the number corresponding to each date.
 # nc_history_detail does not have dow distributed across the rows (all rows for an order list all days)
 
@@ -339,8 +339,8 @@ nc_history_ts_features <- nc_history_ts %>%
   features(n_overnight, feat_stl)
 
 nc_history_ts_features_means <- nc_history_ts_features %>%
-  select(facility_name, site_type_simple, trend_strength, seasonal_strength_week) %>%
-  group_by(site_type_simple) %>%
+  select(facility_name, site_type, trend_strength, seasonal_strength_week) %>%
+  group_by(site_type) %>%
   summarize(across(c(trend_strength, seasonal_strength_week), median)) %>%
   ungroup()
 ```
@@ -354,7 +354,7 @@ Facilities with the strongest trends:
 ```{r}
 top_trends <- nc_history_ts_features %>%
   slice_max(order_by = trend_strength, n= 5) %>%
-  select(facility_name, site_type_simple, trend_strength) 
+  select(facility_name, site_type, trend_strength) 
 
 top_trends %>%
   gt() %>%
@@ -368,8 +368,8 @@ top_trends %>%
 ```{r fig.width=12}
 dcmp_top_trends <- inner_join(
   dcmp,
-  top_trends %>% select(c(facility_name, site_type_simple)),
-  by = c("facility_name", "site_type_simple")
+  top_trends %>% select(c(facility_name, site_type)),
+  by = c("facility_name", "site_type")
 )
 
 components(dcmp_top_trends) %>%
@@ -386,17 +386,17 @@ The various site types have different seasonality and trend dynamics
 
 ```{r}
 ggplot() +
-  geom_point(data = nc_history_ts_features %>% select(-site_type_simple), 
+  geom_point(data = nc_history_ts_features %>% select(-site_type), 
              aes(x = trend_strength, y = seasonal_strength_week),
              alpha = 0.1) +
   geom_point(data = nc_history_ts_features,
-             aes(x = trend_strength, y = seasonal_strength_week, col = site_type_simple)
+             aes(x = trend_strength, y = seasonal_strength_week, col = site_type)
              ) + 
   geom_point(data = nc_history_ts_features_means,
-             aes(x = trend_strength, y = seasonal_strength_week, col = site_type_simple),
+             aes(x = trend_strength, y = seasonal_strength_week, col = site_type),
              shape = 3, size = 5
              ) + 
-  facet_wrap(vars(site_type_simple)) +
+  facet_wrap(vars(site_type)) +
   theme(legend.position = "none") +
   labs(title = "Seasonality by trend strength",
        subtitle = "means indicated by +")
@@ -409,7 +409,7 @@ Standard and tent sites show the most seasonal variation as well as the stronges
 ```{r}
 ggplot() +
   geom_point(data = nc_history_ts_features_means,
-             aes(x = trend_strength, y = seasonal_strength_week, col = site_type_simple),
+             aes(x = trend_strength, y = seasonal_strength_week, col = site_type),
              shape = 3, size = 5
              ) + 
   scale_color_brewer(type = "qual") +
@@ -442,7 +442,7 @@ g <- nc_history_ts %>%
   filter(facility_name %in% facility_subset) %>%
   gg_season(alpha = 0.5) +
   scale_color_viridis_c(end = 0.8) +
-  facet_grid(facility_name ~site_type_simple, scales = "free_y") #+
+  facet_grid(facility_name ~site_type, scales = "free_y") #+
   #theme(legend.position = "none")
 
 g 
@@ -486,13 +486,13 @@ Once I understand more about what acf1 and season_acf1 indicate, this might tell
 
 #nc_history_ts_acf %>%
   ggplot() +
-  geom_point(data = nc_history_ts_acf %>% select(-site_type_simple), 
+  geom_point(data = nc_history_ts_acf %>% select(-site_type), 
              aes(x = acf1, y = season_acf1),
              alpha = 0.1) +
   geom_point(data = nc_history_ts_acf,
-             aes(x = acf1, y = season_acf1, col = site_type_simple)
+             aes(x = acf1, y = season_acf1, col = site_type)
   ) +
-  facet_wrap( ~ site_type_simple) +
+  facet_wrap( ~ site_type) +
   theme(legend.position = "none") +
   labs(title = "<add title here>")
   
@@ -507,13 +507,13 @@ Once I understand more about what acf1 and season_acf1 indicate, this might tell
 # with acf10
 
   ggplot() +
-  geom_point(data = nc_history_ts_acf %>% select(-site_type_simple), 
+  geom_point(data = nc_history_ts_acf %>% select(-site_type), 
              aes(x = acf10, y = season_acf1),
              alpha = 0.1) +
   geom_point(data = nc_history_ts_acf,
-             aes(x = acf10, y = season_acf1, col = site_type_simple)
+             aes(x = acf10, y = season_acf1, col = site_type)
   ) +
-  facet_wrap( ~ site_type_simple) +
+  facet_wrap( ~ site_type) +
   theme(legend.position = "none") +
   labs(title = "<add title here>")
   
@@ -526,13 +526,13 @@ Once I understand more about what acf1 and season_acf1 indicate, this might tell
 ```{r}
 
   ggplot() +
-  geom_point(data = nc_history_ts_acf %>% select(-site_type_simple), 
+  geom_point(data = nc_history_ts_acf %>% select(-site_type), 
              aes(x = acf1, y = acf10),
              alpha = 0.1) +
   geom_point(data = nc_history_ts_acf,
-             aes(x = acf1, y = acf10, col = site_type_simple)
+             aes(x = acf1, y = acf10, col = site_type)
   ) +
-  facet_wrap( ~ site_type_simple) +
+  facet_wrap( ~ site_type) +
   theme(legend.position = "none") +
   labs(title = "<add title here>")
   

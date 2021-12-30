@@ -1743,7 +1743,7 @@ product_id_counts <- tribble(
   # row 4
   "group_by(facility_id, site_type_original) %>% summarize(n = n_distinct(product_id)) %>% ngroup() %>% pull(n) %>% sum()", 
   n_sites_by_facilility_id_site_type_original, 
-  "Additional cases in which multiple facilities use the sampe product_id values across more detailed, multiple, original site_type categories"
+  "Additional cases in which multiple facilities use the same product_id values across more detailed, multiple, original site_type categories"
 ) %>%
   mutate(delta = n_sites - lag(n_sites)) %>%
   relocate(delta, .after = n_sites)

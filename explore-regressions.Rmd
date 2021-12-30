@@ -81,12 +81,12 @@ nc_parks_site_types <- nc_history %>%
   mutate(facility_id_group = cur_group_id()
   ) %>%
   ungroup() %>%
-  group_by(facility_id_group, site_type_simple) %>%
+  group_by(facility_id_group, site_type) %>%
   mutate(n_sites = n_distinct(product_id)) %>%
   ungroup() %>%
-  ##distinct(name_first_word, facility_id_group, site_type_simple, .keep_all = TRUE) %>%
-  distinct(facility_id_group, facility_id, site_type_simple, .keep_all = TRUE) %>%
-  select(name_first_word, facility_id, facility_name, facility_type_description, site_type_simple, facility_id_group, n_sites) %>%
+  ##distinct(name_first_word, facility_id_group, site_type, .keep_all = TRUE) %>%
+  distinct(facility_id_group, facility_id, site_type, .keep_all = TRUE) %>%
+  select(name_first_word, facility_id, facility_name, facility_type_description, site_type, facility_id_group, n_sites) %>%
   group_by(facility_id_group) %>%
   mutate(facility_name = as.list(facility_name),
          facility_name = glue_collapse(unique(facility_name), sep = " + "),
@@ -94,8 +94,8 @@ nc_parks_site_types <- nc_history %>%
          facility_id_list = glue_collapse(unique(facility_id_list), sep = ", ")
   ) %>%
   ungroup() %>%
-  arrange(facility_name, site_type_simple)
-# one row for each facility_name (combined) and site_type_simple
+  arrange(facility_name, site_type)
+# one row for each facility_name (combined) and site_type
 # for cases where only the facility_name ang or facility_group_id matters, use distinct()
 ```
 
@@ -122,13 +122,13 @@ nc_parks_site_types <- nc_history %>%
 #   mutate(facility_id_group = cur_group_id()
 #   ) %>%
 #   ungroup() %>%
-#   group_by(facility_id_group, site_type_simple) %>%
+#   group_by(facility_id_group, site_type) %>%
 #   mutate(product_id_list = list(unique(product_id)),
 #          n_sites = length(product_id_list)) %>%
 #   ungroup() %>%
-#   ##distinct(name_first_word, facility_id_group, site_type_simple, .keep_all = TRUE) %>% 
-#   distinct(facility_id_group, facility_id, site_type_simple, .keep_all = TRUE) %>% 
-#   select(name_first_word, facility_id, facility_name, facility_type_description, site_type_simple, facility_id_group, n_sites) %>%
+#   ##distinct(name_first_word, facility_id_group, site_type, .keep_all = TRUE) %>% 
+#   distinct(facility_id_group, facility_id, site_type, .keep_all = TRUE) %>% 
+#   select(name_first_word, facility_id, facility_name, facility_type_description, site_type, facility_id_group, n_sites) %>%
 #   group_by(facility_id_group) %>%
 #   mutate(facility_name = as.list(facility_name),
 #          facility_name = glue_collapse(unique(facility_name), sep = " + "),
@@ -136,8 +136,8 @@ nc_parks_site_types <- nc_history %>%
 #          facility_id_list = glue_collapse(unique(facility_id_list), sep = ", ")
 #   ) %>%
 #   ungroup() %>%
-#   arrange(facility_name, site_type_simple)
-# # one row for each facility_name (combined) and site_type_simple
+#   arrange(facility_name, site_type)
+# # one row for each facility_name (combined) and site_type
 # # for cases where only the facility_name ang or facility_group_id matters, use distinct()
 
 # nc_campsites <- tar_read(nc_campsites_from_history) %>%
@@ -173,24 +173,24 @@ nc_parks_site_types <- nc_history %>%
 
 # nc_yday <- tar_read(nc_camping_history_yday) %>%
 #   unnest(c(days_of_reservation, yday_of_reservation)) %>%
-#   count(year, facility_name, site_type_simple, season, days_of_reservation, yday_of_reservation,
+#   count(year, facility_name, site_type, season, days_of_reservation, yday_of_reservation,
 #         name = "n_campsites") %>%
 #   arrange(facility_name, year, yday_of_reservation)
 # 
 # nc_week <- tar_read(nc_camping_history_yday) %>%
 #   unnest(week_of_reservation, yday_of_reservation) %>%
-#   count(year, facility_name, site_type_simple, season, week_of_reservation, #n_campgrounds, 
+#   count(year, facility_name, site_type, season, week_of_reservation, #n_campgrounds, 
 #         name = "n_campsites") %>%
-#   arrange(facility_name, year, week_of_reservation, site_type_simple)
+#   arrange(facility_name, year, week_of_reservation, site_type)
 # 
 # nc_week_n_camps_occupied <- tar_read(nc_camping_history_yday) %>%
 #   filter(year >= year_lower_bound,
-#          site_type_simple != "management") %>%
-#   distinct(year, week_of_reservation, facility_name, site_type_simple) %>%
+#          site_type != "management") %>%
+#   distinct(year, week_of_reservation, facility_name, site_type) %>%
 #   mutate(week_of_reservation = map(week_of_reservation, unique)) %>%
 #   unnest(week_of_reservation) %>%
-#   distinct(year, week_of_reservation, facility_name, site_type_simple) %>%
-#   group_by(year, week_of_reservation, site_type_simple) %>%
+#   distinct(year, week_of_reservation, facility_name, site_type) %>%
+#   group_by(year, week_of_reservation, site_type) %>%
 #   summarize(n_campgrounds = n_distinct(facility_name)) %>%
 #   ungroup()
 
@@ -240,7 +240,7 @@ nc_camping_person_nights_and_revenue_site_type <- nc_history %>%
              by = "facility_first_word") %>%
   group_by(year, facility_name_original, facility_id, facility_id_list, 
            facility_first_word, facility_name, facility_id_group, 
-           site_type_simple) %>%
+           site_type) %>%
   summarize(n_reservations = n(), 
             revenue_in_year = sum(total_paid, na.rm = TRUE),
             person_nights = sum(person_nights)
@@ -259,12 +259,12 @@ nc_camping_person_nights_and_revenue_site_type <- nc_history %>%
 
 ```{r}
 nc_camping_person_nights_and_revenue_site_type %>%
-  group_by(year, site_type_simple) %>%
+  group_by(year, site_type) %>%
   summarize(n_reservations = sum(n_reservations)) %>%
   ungroup() %>%
-  mutate(site_type_simple = fct_reorder(site_type_simple, n_reservations),
+  mutate(site_type = fct_reorder(site_type, n_reservations),
          year = year + year_lower_bound - 1) %>% #view()
-  ggplot(aes(x = year, y = n_reservations, fill = site_type_simple)) +
+  ggplot(aes(x = year, y = n_reservations, fill = site_type)) +
   geom_area() +
   scale_x_continuous(labels = label_number(accuracy = 1, big.mark = ""),
                      breaks = (1:5) * 2 + 2008) +
@@ -280,12 +280,12 @@ nc_camping_person_nights_and_revenue_site_type %>%
 
 ```{r}
 nc_camping_person_nights_and_revenue_site_type %>%
-  group_by(year, site_type_simple) %>%
+  group_by(year, site_type) %>%
   summarize(person_nights = sum(person_nights)) %>%
   ungroup() %>%
-  mutate(site_type_simple = fct_reorder(site_type_simple, person_nights),
+  mutate(site_type = fct_reorder(site_type, person_nights),
          year = year + year_lower_bound - 1) %>% #view()
-  ggplot(aes(x = year, y = person_nights, fill = site_type_simple)) +
+  ggplot(aes(x = year, y = person_nights, fill = site_type)) +
   geom_area() +
   scale_x_continuous(labels = label_number(accuracy = 1, big.mark = ""),
                      breaks = (1:5) * 2 + 2008) +
@@ -301,12 +301,12 @@ nc_camping_person_nights_and_revenue_site_type %>%
 
 ```{r}
 nc_camping_person_nights_and_revenue_site_type %>%
-  group_by(year, site_type_simple) %>%
+  group_by(year, site_type) %>%
   summarize(revenue_in_year = sum(revenue_in_year)) %>%
   ungroup() %>%
-  mutate(site_type_simple = fct_reorder(site_type_simple, revenue_in_year),
+  mutate(site_type = fct_reorder(site_type, revenue_in_year),
          year = year + year_lower_bound - 1) %>% #view()
-  ggplot(aes(x = year, y = revenue_in_year, fill = site_type_simple)) +
+  ggplot(aes(x = year, y = revenue_in_year, fill = site_type)) +
   geom_area() +
   scale_x_continuous(labels = label_number(accuracy = 1, big.mark = ""),
                      breaks = (1:5) * 2 + 2008) +
@@ -339,7 +339,7 @@ fit0.reservations <- lm(n_reservations ~ year,
 fit0.reservations2 <- 
   nc_camping_person_nights_and_revenue_site_type %>%
   mutate(temp = 1) %>%
-  pivot_wider(names_from = site_type_simple, names_prefix = "dummy_", values_from = temp) %>%
+  pivot_wider(names_from = site_type, names_prefix = "dummy_", values_from = temp) %>%
   mutate(across(starts_with("dummy"), ~ ifelse(is.na(.x), 0, .x))) %>%
   lm(n_reservations ~ year + dummy_tent + dummy_group + 
        dummy_cabin + dummy_equestrian + dummy_rv,
@@ -379,7 +379,7 @@ fit0_reservations_results %>%
 
 <br>
 
-As expected, adding the categories of `site_type_simple` as dummy variables reduces the standard error on the year.
+As expected, adding the categories of `site_type` as dummy variables reduces the standard error on the year.
 
 <br>
 
@@ -392,7 +392,7 @@ fit0.person_nights <- lm(person_nights ~ year,
 fit0.person_nights2 <- 
   nc_camping_person_nights_and_revenue_site_type %>%
   mutate(temp = 1) %>%
-  pivot_wider(names_from = site_type_simple, names_prefix = "dummy_", values_from = temp) %>%
+  pivot_wider(names_from = site_type, names_prefix = "dummy_", values_from = temp) %>%
   mutate(across(starts_with("dummy"), ~ ifelse(is.na(.x), 0, .x))) %>%
   lm(person_nights ~ year + dummy_tent + dummy_group + 
        dummy_cabin + dummy_equestrian + dummy_rv,
@@ -442,7 +442,7 @@ fit0.revenue_in_year <- lm(revenue_in_year ~ year,
 fit0.revenue_in_year2 <- 
   nc_camping_person_nights_and_revenue_site_type %>%
   mutate(temp = 1) %>%
-  pivot_wider(names_from = site_type_simple, names_prefix = "dummy_", values_from = temp) %>%
+  pivot_wider(names_from = site_type, names_prefix = "dummy_", values_from = temp) %>%
   mutate(across(starts_with("dummy"), ~ ifelse(is.na(.x), 0, .x))) %>%
   lm(revenue_in_year ~ year + dummy_tent + dummy_group + 
        dummy_cabin + dummy_equestrian + dummy_rv,
@@ -559,11 +559,11 @@ fit1_results <- bind_rows(
 
 <br>
 
-## Add `site_type_simple`
+## Add `site_type`
 
 ```{r}
 fit2.reservations <- lmer(data = df_facility_site_type,
-            formula = n_reservations_c ~ 1 + site_type_simple + (1 | facility_first_word)
+            formula = n_reservations_c ~ 1 + site_type + (1 | facility_first_word)
 )
 
 summary(fit2.reservations)
@@ -573,7 +573,7 @@ summary(fit2.reservations)
 
 ```{r}
 fit2.person_nights <- lmer(data = df_facility_site_type,
-            formula = person_nights_c ~ 1 + site_type_simple + (1 | facility_first_word)
+            formula = person_nights_c ~ 1 + site_type + (1 | facility_first_word)
 )
 
 summary(fit2.person_nights)
@@ -583,7 +583,7 @@ summary(fit2.person_nights)
 
 ```{r}
 fit2.revenue <- lmer(data = df_facility_site_type,
-            formula = revenue_in_year_c ~ 1 + site_type_simple + (1 | facility_first_word)
+            formula = revenue_in_year_c ~ 1 + site_type + (1 | facility_first_word)
 )
 
 summary(fit2.revenue)
@@ -612,7 +612,7 @@ fit2_results <- bind_rows(
 
 ```{r}
 fit3.reservations <- lmer(data = df_facility_site_type,
-      formula = n_reservations_c ~ 1 + site_type_simple + year + (1 | facility_first_word)
+      formula = n_reservations_c ~ 1 + site_type + year + (1 | facility_first_word)
 )
 
 summary(fit3.reservations)
@@ -622,7 +622,7 @@ summary(fit3.reservations)
 
 ```{r}
 fit3.person_nights <- lmer(data = df_facility_site_type,
-      formula = person_nights_c ~ 1 + site_type_simple + year + (1 | facility_first_word)
+      formula = person_nights_c ~ 1 + site_type + year + (1 | facility_first_word)
 )
 
 summary(fit3.person_nights)
@@ -632,7 +632,7 @@ summary(fit3.person_nights)
 
 ```{r}
 fit3.revenue <- lmer(data = df_facility_site_type,
-      formula = revenue_in_year_c ~ 1 + site_type_simple + year + (1 | facility_first_word)
+      formula = revenue_in_year_c ~ 1 + site_type + year + (1 | facility_first_word)
 )
 
 summary(fit3.revenue)
@@ -657,11 +657,11 @@ fit3_results <- bind_rows(
 
 <br>
 
-## Change `site_type_simple` to be a level of the model
+## Change `site_type` to be a level of the model
 
 ```{r}
 fit4.reservations <- lmer(data = df_facility_site_type,
-      formula = n_reservations_c ~ 1 + year + (1 | site_type_simple) + (1 | facility_first_word)
+      formula = n_reservations_c ~ 1 + year + (1 | site_type) + (1 | facility_first_word)
 )
 
 summary(fit4.reservations)
@@ -671,7 +671,7 @@ summary(fit4.reservations)
 
 ```{r}
 fit4.person_nights <- lmer(data = df_facility_site_type,
-      formula = person_nights_c ~ 1 + year + (1 | site_type_simple) + (1 | facility_first_word)
+      formula = person_nights_c ~ 1 + year + (1 | site_type) + (1 | facility_first_word)
 )
 
 summary(fit4.person_nights)
@@ -681,7 +681,7 @@ summary(fit4.person_nights)
 
 ```{r}
 fit4.revenue <- lmer(data = df_facility_site_type,
-      formula = revenue_in_year_c ~ 1 + year + (1 | site_type_simple) + (1 | facility_first_word)
+      formula = revenue_in_year_c ~ 1 + year + (1 | site_type) + (1 | facility_first_word)
 )
 
 summary(fit4.revenue)
@@ -818,7 +818,7 @@ summary(fit1b.reservations)
 fit2b is much better than fit1b
 
 ```{r}
-fit2b.reservations <- brm(n_reservations ~ 1 + site_type_simple + (1 | facility_name_original), 
+fit2b.reservations <- brm(n_reservations ~ 1 + site_type + (1 | facility_name_original), 
                           data = df_facility_site_type,
                           save_pars = save_pars(all = TRUE),
                           cores  = 4,
@@ -834,7 +834,7 @@ summary(fit2b.reservations)
 fit3b is even better.
 
 ```{r}
-fit3b.reservations <- brm(n_reservations ~ 1 + site_type_simple + year + (1 | facility_name_original), 
+fit3b.reservations <- brm(n_reservations ~ 1 + site_type + year + (1 | facility_name_original), 
                           data = df_facility_site_type,
                           save_pars = save_pars(all = TRUE),
                           cores  = 4,
@@ -848,7 +848,7 @@ summary(fit3b.reservations)
 
 <br>
 
-Turning site_type_simple into a group effect in fit4b...
+Turning site_type into a group effect in fit4b...
 
 ```{echo=FALSE, include=FALSE}
 I had some challenges
@@ -867,7 +867,7 @@ Error in unserialize(socklist[[n]]) : error reading from connection
 when including control in 
 
 
-fit4b.reservations <- brm(n_reservations ~ 1 + year + (1 | site_type_simple) + (1 | facility_id), 
+fit4b.reservations <- brm(n_reservations ~ 1 + year + (1 | site_type) + (1 | facility_id), 
                           data = df_facility_site_type,
                           cores  = 4,
                           silent = 2, # fewer messages while running
@@ -885,7 +885,7 @@ Can I add comments to Makevars? If so, I would include these:
 ```
 
 ```{r}
-fit4b.reservations <- brm(n_reservations ~ 1 + year + (1 | site_type_simple) + (1 | facility_name_original), 
+fit4b.reservations <- brm(n_reservations ~ 1 + year + (1 | site_type) + (1 | facility_name_original), 
                           data = df_facility_site_type,
                           save_pars = save_pars(all = TRUE),
                           cores  = 4,
@@ -955,7 +955,7 @@ mcmc_areas(posterior,
            prob = 0.8) +
   theme(plot.title.position = "plot") +
   labs(title = "NC Camping Reservations - mulit-level model 'fit3b.reservations'", 
-       subtitle = "formula = n_reservations ~ 1 + year + (1 | site_type_simple) + (1 | facility_name_original)")
+       subtitle = "formula = n_reservations ~ 1 + year + (1 | site_type) + (1 | facility_name_original)")
 ```
 
 <br>
@@ -969,7 +969,7 @@ mcmc_areas(posterior,
            prob = 0.8) +
   theme(plot.title.position = "plot") +
   labs(title = "NC Camping Reservations - mulit-level model 'fit4b.reservations'", 
-       subtitle = "formula = n_reservations ~ 1 + year + (1 | site_type_simple) + (1 | facility_name_original)")
+       subtitle = "formula = n_reservations ~ 1 + year + (1 | site_type) + (1 | facility_name_original)")
 ```
 
 <br>
@@ -1026,14 +1026,14 @@ ppc_intervals_grouped(
   y = df_facility_site_type$n_reservations,
   yrep = posterior_predict(fit3b.reservations),
   x = df_facility_site_type$year,
-  group = df_facility_site_type$site_type_simple,
+  group = df_facility_site_type$site_type,
   prob = 0.5
 ) +
   labs(
     x = "Year",
     y = "n_reservations",
     title = "fit3b.reservations: 50% posterior predictive intervals \nvs observed n_reservations",
-    subtitle = "grouped by site_type_simple"
+    subtitle = "grouped by site_type"
   ) +
   panel_bg(fill = "gray95", color = NA) +
   grid_lines(color = "white")
@@ -1048,14 +1048,14 @@ ppc_intervals_grouped(
   y = df_facility_site_type$n_reservations,
   yrep = posterior_predict(fit4b.reservations),
   x = df_facility_site_type$year,
-  group = df_facility_site_type$site_type_simple,
+  group = df_facility_site_type$site_type,
   prob = 0.5
 ) +
   labs(
     x = "Year",
     y = "n_reservations",
     title = "fit4b.reservations: 50% posterior predictive intervals \nvs observed n_reservations",
-    subtitle = "grouped by site_type_simple"
+    subtitle = "grouped by site_type"
   ) +
   panel_bg(fill = "gray95", color = NA) +
   grid_lines(color = "white")
@@ -1085,14 +1085,14 @@ ppc_intervals_grouped(
 
 <br>
 
-What if we group by both facility and site_type_simple? Nope: can't do both at once:
+What if we group by both facility and site_type? Nope: can't do both at once:
 
 ```{r fig.height=9, fig.width=9, eval=FALSE, echo=TRUE}
 ppc_intervals_grouped(
   y = df_facility_site_type$n_reservations,
   yrep = posterior_predict(fit4b.reservations),
   x = df_facility_site_type$year,
-  group = c(df_facility_site_type$site_type_simple, df_facility_site_type$facility_first_word),
+  group = c(df_facility_site_type$site_type, df_facility_site_type$facility_first_word),
   prob = 0.5
 ) +
   labs(
@@ -1212,24 +1212,24 @@ tibble(lambda = c(0.25, 0.5, 1, 2.5, 5, 10, 20, 40, 80)) %>%
 
 But none of the above are really helpful, since I need to model the parameters in the ***model***, not the ***posterior distribution***.
 
-Let's consider fit4b.reservations, where `site_type_simple` and `facility_name_original` are the groups in the hierarchical model.
+Let's consider fit4b.reservations, where `site_type` and `facility_name_original` are the groups in the hierarchical model.
 
 Across all facilities, the site types' growth curves and their magnitudes vary considerably:
 
 ```{r fig.height=4, fig.width=10}
 nc_camping_person_nights_and_revenue_site_type %>%
-  group_by(year, site_type_simple) %>%
+  group_by(year, site_type) %>%
   summarize(n_reservations = sum(n_reservations)) %>%
   ungroup() %>%
-  mutate(site_type_simple = fct_reorder(site_type_simple, n_reservations),
+  mutate(site_type = fct_reorder(site_type, n_reservations),
          year = year + year_lower_bound - 1) %>% #view()
-  ggplot(aes(x = year, y = n_reservations, fill = site_type_simple)) +
+  ggplot(aes(x = year, y = n_reservations, fill = site_type)) +
   geom_area() +
   scale_x_continuous(labels = label_number(accuracy = 1, big.mark = ""),
                      breaks = (1:5) * 2 + 2008) +
   scale_y_continuous(labels = label_number_si()) +
   scale_fill_viridis_d(end = 0.92, direction = -1) +
-  facet_grid(. ~ site_type_simple) +
+  facet_grid(. ~ site_type) +
   theme(legend.position = "bottom") +
   labs(title = "NC camping n_reservations",
        subtitle = glue("{year_lower_bound}-{year_end}"),
@@ -1243,12 +1243,12 @@ Similarly, they vary widely across facilities:
 
 ```{r fig.height=30, fig.width=10}
 nc_camping_person_nights_and_revenue_site_type %>%
-  group_by(year, facility_name_original, site_type_simple) %>%
+  group_by(year, facility_name_original, site_type) %>%
   summarize(n_reservations = sum(n_reservations)) %>%
   ungroup() %>%
   mutate(facility_name_original = fct_reorder(facility_name_original, -n_reservations, sum),
          year = year + year_lower_bound - 1) %>% #view()
-  ggplot(aes(x = year, y = n_reservations, fill = site_type_simple)) +
+  ggplot(aes(x = year, y = n_reservations, fill = site_type)) +
   geom_area() +
   scale_x_continuous(labels = label_number(accuracy = 1, big.mark = ""),
                      breaks = (1:5) * 2 + 2008) +
@@ -1268,18 +1268,18 @@ Faceting by both in a grid:
 
 ```{r fig.height=60, fig.width=10}
 nc_camping_person_nights_and_revenue_site_type %>%
-  group_by(year, facility_name_original, site_type_simple) %>%
+  group_by(year, facility_name_original, site_type) %>%
   summarize(n_reservations = sum(n_reservations)) %>%
   ungroup() %>%
   mutate(facility_name_original = fct_reorder(facility_name_original, -n_reservations, sum),
          year = year + year_lower_bound - 1) %>% #view()
-  ggplot(aes(x = year, y = n_reservations, fill = site_type_simple)) +
+  ggplot(aes(x = year, y = n_reservations, fill = site_type)) +
   geom_area() +
   scale_x_continuous(labels = label_number(accuracy = 1, big.mark = ""),
                      breaks = (1:5) * 2 + 2008) +
   scale_y_continuous(labels = label_number_si()) +
   scale_fill_viridis_d(end = 0.92, direction = -1) +
-  facet_grid(facility_name_original ~ site_type_simple, scales = "free_y") + #, ncol = 4, scales = "free_y") +
+  facet_grid(facility_name_original ~ site_type, scales = "free_y") + #, ncol = 4, scales = "free_y") +
   theme(legend.position = "top") +
   labs(title = "NC camping n_reservations",
        subtitle = glue("Y scale varies. {year_lower_bound}-{year_end}"),
@@ -1293,12 +1293,12 @@ nc_camping_person_nights_and_revenue_site_type %>%
 
 ```{r fig.height=30, fig.width=10}
 nc_camping_person_nights_and_revenue_site_type %>%
-  group_by(year, facility_name_original, site_type_simple) %>%
+  group_by(year, facility_name_original, site_type) %>%
   summarize(person_nights = sum(person_nights)) %>%
   ungroup() %>%
   mutate(facility_name_original = fct_reorder(facility_name_original, -person_nights, sum),
          year = year + year_lower_bound - 1) %>% #view()
-  ggplot(aes(x = year, y = person_nights, fill = site_type_simple)) +
+  ggplot(aes(x = year, y = person_nights, fill = site_type)) +
   geom_area() +
   scale_x_continuous(labels = label_number(accuracy = 1, big.mark = ""),
                      breaks = (1:5) * 2 + 2008) +
@@ -1316,12 +1316,12 @@ nc_camping_person_nights_and_revenue_site_type %>%
 
 ```{r fig.height=30, fig.width=10}
 nc_camping_person_nights_and_revenue_site_type %>%
-  group_by(year, facility_name_original, site_type_simple) %>%
+  group_by(year, facility_name_original, site_type) %>%
   summarize(revenue_in_year = sum(revenue_in_year)) %>%
   ungroup() %>%
   mutate(facility_name_original = fct_reorder(facility_name_original, -revenue_in_year, sum),
          year = year + year_lower_bound - 1) %>% #view()
-  ggplot(aes(x = year, y = revenue_in_year, fill = site_type_simple)) +
+  ggplot(aes(x = year, y = revenue_in_year, fill = site_type)) +
   geom_area() +
   scale_x_continuous(labels = label_number(accuracy = 1, big.mark = ""),
                      breaks = (1:5) * 2 + 2008) +
