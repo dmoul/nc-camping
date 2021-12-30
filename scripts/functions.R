@@ -200,26 +200,27 @@ get_park_years_usa <- function(facilities, path_csv = "./data/raw/reservations/"
   
   park_years <- park_years_raw  %>%
     # select(-geometry) %>% # feather is not handling sf geometry properties correctly, so I'll recreate it later
+    rename(site_type_original = site_type) %>%
     mutate(
-      site_type = str_to_lower(site_type),
-      site_type = ifelse(site_type == "campsite", "standard", site_type),
-      site_type_simple = case_when(
-        str_detect(site_type, "equestrian")                ~ "equestrian", # needs to be before "group"
-        str_detect(site_type, "group")                     ~ "group",
-        str_detect(site_type, "standard")                  ~ "standard",
-        str_detect(site_type, "tent")                      ~ "tent",
-        str_detect(site_type, "cabin|yurt")                ~ "cabin",
-        str_detect(site_type, "rv")                        ~ "rv",
-        str_detect(site_type, "management")                ~ "management",
-        str_detect(site_type, "shelter|lookout")           ~ "shelter",
-        str_detect(site_type, "hike|lookout|walk")         ~ "standard",
-        str_detect(site_type, "anchorage|boat|mooring")    ~ "other",
-        str_detect(site_type, "no|yes")                    ~ "other",
-        str_detect(site_type, "picnic|zone")               ~ "other",
-        TRUE                                               ~ "other"
+      site_type_original = str_to_lower(site_type_original),
+      site_type_original = ifelse(site_type_original == "campsite", "standard", site_type_original),
+      site_type = case_when(
+        str_detect(site_type_original, "equestrian")                ~ "equestrian", # needs to be before "group"
+        str_detect(site_type_original, "group")                     ~ "group",
+        str_detect(site_type_original, "standard")                  ~ "tent", # true in all or nearly all cases
+        str_detect(site_type_original, "tent")                      ~ "tent",
+        str_detect(site_type_original, "cabin|yurt")                ~ "cabin",
+        str_detect(site_type_original, "rv")                        ~ "rv",
+        str_detect(site_type_original, "management")                ~ "management",
+        str_detect(site_type_original, "shelter|lookout")           ~ "shelter",
+        str_detect(site_type_original, "hike|lookout|walk")         ~ "standard",
+        str_detect(site_type_original, "anchorage|boat|mooring")    ~ "other",
+        str_detect(site_type_original, "no|yes")                    ~ "other",
+        str_detect(site_type_original, "picnic|zone")               ~ "other",
+        TRUE                                                        ~ "other"
       )
     ) %>%
-    distinct(facility_id, site_type_simple, start_year, .keep_all = TRUE)
+    distinct(facility_id, site_type, start_year, .keep_all = TRUE)
   
   #write_feather(park_years, paste0("./data/processed/park-years.feather"))
   saveRDS(park_years, paste0("./data/processed/park-years.rds"))
@@ -388,9 +389,7 @@ get_nc_camping_history <- function(path_feather = "./data/processed/nc_by_year_s
            entity_type = str_to_lower(entity_type),
            use_type = str_to_lower(use_type),
     ) %>% 
-    filter(#!is.na(path), # TODO: is this still needed?
-      use_type == "overnight") %>%
-    # TODO: confirm capitalization below
+    filter(use_type == "overnight") %>%
     mutate(entity_type = if_else(entity_type == "site", "camping", entity_type), # assume "site" means "camping"
            across(tax:total_paid, as.numeric),
            person_nights  = number_of_people * nights,
@@ -399,25 +398,26 @@ get_nc_camping_history <- function(path_feather = "./data/processed/nc_by_year_s
     inner_join(.,
                facilities %>% select(-c(facility_longitude, facility_latitude, facility_state, reservable, last_updated_date)),
                by = "facility_id") %>%
+    rename(site_type_original = site_type) %>%
     mutate(facility_name = str_to_title(facility_name),
            facility_type_description = str_to_lower(facility_type_description),
-           site_type_simple = case_when(
-             str_detect(site_type, "equestrian")                ~ "equestrian", # needs to be before "group"
-             str_detect(site_type, "group")                     ~ "group",
-             str_detect(site_type, "standard")                  ~ "standard",
-             str_detect(site_type, "tent")                      ~ "tent",
-             str_detect(site_type, "cabin|yurt")                ~ "cabin",
-             str_detect(site_type, "rv")                        ~ "rv",
-             str_detect(site_type, "management")                ~ "management",
-             str_detect(site_type, "shelter|lookout")           ~ "shelter",
-             str_detect(site_type, "hike|lookout|walk")         ~ "standard",
-             str_detect(site_type, "anchorage|boat|mooring")    ~ "other",
-             str_detect(site_type, "no|yes")                    ~ "other",
-             str_detect(site_type, "picnic|zone")               ~ "other",
-             TRUE                                               ~ "other"
+           site_type = case_when(
+             str_detect(site_type_original, "equestrian")                ~ "equestrian", # needs to be before "group"
+             str_detect(site_type_original, "group")                     ~ "group",
+             str_detect(site_type_original, "standard")                  ~ "tent", # true in all or nearly all cases
+             str_detect(site_type_original, "tent")                      ~ "tent",
+             str_detect(site_type_original, "cabin|yurt")                ~ "cabin",
+             str_detect(site_type_original, "rv")                        ~ "rv",
+             str_detect(site_type_original, "management")                ~ "management",
+             str_detect(site_type_original, "shelter|lookout")           ~ "shelter",
+             str_detect(site_type_original, "hike|lookout|walk")         ~ "standard",
+             str_detect(site_type_original, "anchorage|boat|mooring")    ~ "other",
+             str_detect(site_type_original, "no|yes")                    ~ "other",
+             str_detect(site_type_original, "picnic|zone")               ~ "other",
+             TRUE                                                        ~ "other"
            )
     ) %>%
-    select(path, facility_id, facility_name, site_type_simple, site_type, entity_type, use_type, 
+    select(path, facility_id, facility_name, site_type, entity_type, use_type, 
            start_date, end_date, number_of_people, nights, person_nights, tidyselect::everything())
   
   # write_feather(nc_hist, paste0("./data/processed/nc_historical_camping.feather")) not needed since target will cache it
@@ -466,7 +466,7 @@ get_nc_camping_history_dow_detail <- function(tbl) {
   tbl %>%
     filter(nights > 0) %>%
     # head(10000) %>% # for testing
-    select(-c(path, entity_type, use_type, site_type, agency:parent_location, customer_zip:total_before_tax, org_facility_id:keywords)) %>%
+    select(-c(path, entity_type, use_type, agency:parent_location, customer_zip:total_before_tax, org_facility_id:keywords)) %>%
     mutate(all_days = map2(start_date, nights, ~ seq(from = .x, 
                                                      to = .x + .y -1, 
                                                      by = 1)
@@ -482,7 +482,7 @@ get_nc_camping_history_dow_detail <- function(tbl) {
     "off-season"
     )
     ) %>%
-    # select(facility_name, facility_id, site_type_simple, start_date, nights, all_days, all_days_string, all_days_number_string, days_of_reservation, season) %>%
+    # select(facility_name, facility_id, site_type, start_date, nights, all_days, all_days_string, all_days_number_string, days_of_reservation, season) %>%
     separate_rows(all_days_number_string, sep =  ", ") %>% #, all_days_string
     mutate(overnight_date = as.Date(all_days_number_string),
            day_label = wday(overnight_date, label = TRUE),
@@ -526,7 +526,7 @@ get_nc_camping_history_yday <- function(tbl) {
                      ),
     row_id = row_number()
     ) %>%
-    select(row_id, year, facility_name, site_type_simple, start_date, nights, 
+    select(row_id, year, facility_name, site_type, start_date, nights, 
            all_days, days_of_reservation, yday_of_reservation, week_of_reservation, week_string, season)
   
 }
