@@ -24,7 +24,7 @@ list(
   tar_target(path_nc_history_files, prepare_nc_history()),
   tar_target(nc_camping_history, get_nc_camping_history(path_feather = path_nc_history_files, 
                                                         facilities = facilities_all)),
-  tar_target(nc_camping_history_dow, get_nc_camping_history_dow(nc_camping_history)),
+  tar_target(nc_camping_history_detail, get_nc_camping_history_dow_detail(nc_camping_history)),
   tar_target(nc_campsites_from_history, get_nc_campsites_from_nc_camping_history(nc_camping_history)),
   tar_target(nc_camping_history_yday, get_nc_camping_history_yday(nc_camping_history)),
   tar_target(federal_orgs, get_federal_orgs()),

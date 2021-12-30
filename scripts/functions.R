@@ -426,20 +426,54 @@ get_nc_camping_history <- function(path_feather = "./data/processed/nc_by_year_s
 
 
 ###### get_nc_camping_history_dow ###### 
+## Replaced by get_nc_camping_history_dow_detail
+# get_nc_camping_history_dow <- function(tbl) {
+#   # INPUT: df with nc_camping_history
+#   # OUTPUT: much larger df with one row for each day of the week each reservation included
+#   
+#   tbl %>%
+#     filter(nights > 0) %>%
+#     #head(1000) %>% # for testing
+#     mutate(all_days = map2(start_date, nights, ~ seq(from = .x, 
+#                                                      to = .x + .y -1, 
+#                                                      by = 1)
+#     ),
+#     days_of_reservation = map(all_days, ~ wday(.x, label = TRUE, abbr = TRUE)),
+#     all_days_string = map_chr(days_of_reservation, glue_collapse, sep = ", "),
+#     season = if_else(between(yday(start_date),
+#                              yday(summer_season_start),
+#                              yday(summer_season_end)
+#     ),
+#     "summer-season",
+#     "off-season"
+#     )
+#     ) %>%
+#     select(start_date, nights, all_days, all_days_string, days_of_reservation, season) %>%
+#     separate_rows(all_days_string) %>%
+#     mutate(all_days_string = factor(all_days_string, levels = dow_labels)) 
+#   
+# }
 
-get_nc_camping_history_dow <- function(tbl) {
+###### get_nc_camping_history_dow_detail ###### 
+
+get_nc_camping_history_dow_detail <- function(tbl) {
   # INPUT: df with nc_camping_history
   # OUTPUT: much larger df with one row for each day of the week each reservation included
   
+  # test
+  # tbl <- nc_history
+  
   tbl %>%
     filter(nights > 0) %>%
-    #head(1000) %>% # for testing
+    # head(10000) %>% # for testing
+    select(-c(path, entity_type, use_type, site_type, agency:parent_location, customer_zip:total_before_tax, org_facility_id:keywords)) %>%
     mutate(all_days = map2(start_date, nights, ~ seq(from = .x, 
                                                      to = .x + .y -1, 
                                                      by = 1)
     ),
     days_of_reservation = map(all_days, ~ wday(.x, label = TRUE, abbr = TRUE)),
     all_days_string = map_chr(days_of_reservation, glue_collapse, sep = ", "),
+    all_days_number_string = map_chr(all_days, glue_collapse, sep = ", "),
     season = if_else(between(yday(start_date),
                              yday(summer_season_start),
                              yday(summer_season_end)
@@ -448,9 +482,14 @@ get_nc_camping_history_dow <- function(tbl) {
     "off-season"
     )
     ) %>%
-    select(start_date, nights, all_days, all_days_string, days_of_reservation, season) %>%
-    separate_rows(all_days_string) %>%
-    mutate(all_days_string = factor(all_days_string, levels = dow_labels)) 
+    # select(facility_name, facility_id, site_type_simple, start_date, nights, all_days, all_days_string, all_days_number_string, days_of_reservation, season) %>%
+    separate_rows(all_days_number_string, sep =  ", ") %>% #, all_days_string
+    mutate(overnight_date = as.Date(all_days_number_string),
+           day_label = wday(overnight_date, label = TRUE),
+           loc_mountains = if_else(facility_longitude < -80.5, 1, 0), # valid for NC only
+           loc_coast = if_else(facility_longitude > -77.5, 1, 0), # valid for NC only
+    ) %>%
+    select(-c(all_days, all_days_number_string))
   
 }
 
