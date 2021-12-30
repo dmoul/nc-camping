@@ -337,7 +337,7 @@ ggplot() +
 
 ## Number of campsites
 
-About half of the campgrounds have at least 50 campsites:
+About half the campgrounds have at least 50 campsites:
 
 ```{r nc-site-count-ecdf, out.width="100%", fig.width=8}
 nc_campsites %>%
