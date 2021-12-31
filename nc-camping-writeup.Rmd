@@ -655,6 +655,19 @@ nc_campgrounds_year_min %>%
 
 <br><br>
 
+```{r}
+nc_history_camps_all_years <- 
+  inner_join(
+    campgrounds_all_years %>% select(-year),
+    nc_history,
+    by = c("facility_id", "facility_name", "site_type")
+) %>%
+  select(-all_years)
+```
+
+
+<br>
+
 ```{r eval=FALSE}
 # finding the missing 27 sites
 
