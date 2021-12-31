@@ -111,7 +111,29 @@ get_nc_campsites_from_nc_camping_history <- function(nc_camping_history) {
   
 }
 
-###### get_park_years ###### 
+###### get_park_years_nc ###### 
+
+get_park_years_nc <- function(nc_hist) {
+  # create df with list of all facilities that provide overnight camping and the first and last year reservations were offered in the dataset
+  
+  # test
+  # nc_hist <- nc_history
+  
+  park_years <- nc_hist %>%
+    group_by(facility_id, facility_name, site_type, agency, facility_longitude, facility_latitude) %>%
+    summarize(year_min = min(year),
+              year_max = max(year)) %>%
+    ungroup()
+  
+  #write_feather(park_years, paste0("./data/processed/park-years.feather"))
+  saveRDS(park_years, paste0("./data/processed/park-years.rds"))
+  
+  park_years
+  
+}
+
+
+###### get_park_years_usa ###### 
 
 get_park_years_usa <- function(facilities, path_csv = "./data/raw/reservations/") {
   # create df with list of all facilities that provide overnight camping and the first and last year reservations were offered in the dataset
@@ -251,7 +273,7 @@ prepare_nc_history <- function(path_csv = "./data/raw/reservations/",
       clean_names()
     
     tbl_tmp2 <- tbl_tmp %>%
-      # fix NC missing faciility_state values so we can work with all NC reservations
+      # fix NC missing facility_state values so we can work with all NC reservations
       # `park` will become `facility_name` later
       mutate(facility_state = if_else(park %in% str_to_upper(c("Crabtree Falls Campground", "Deep Creek Campground (Nc)", "Lake Powhatan Glamping")), 
                                       "NC", 
@@ -284,7 +306,7 @@ prepare_nc_history <- function(path_csv = "./data/raw/reservations/",
              inventorytype != "VEHICLE_PERMIT") %>% # not off-road permits
       mutate(across(ends_with("date"), ~ as.Date(.x, origin = "1970-01-01"))) %>%
       mutate(across(ends_with(c("tude", "people")), as.numeric)) %>%
-      select(1:numberofpeople, - starts_with(c("entityid", "equipment", "discount"))) %>% #some don't exist pre-2019
+      select(1:numberofpeople, - starts_with(c("entityid", "equipment", "discount"))) %>% #some columns don't exist pre-2019
       mutate(nights = as.numeric(difftime(enddate, startdate, units = "days"))) %>%
       filter(nights > 0)  # drop day use shelters
     
@@ -298,7 +320,8 @@ prepare_nc_history <- function(path_csv = "./data/raw/reservations/",
                          "total_paid", "start_date", "end_date", "order_date", "number_of_people", "nights")
     
     tbl_tmp2 %>%
-      select(-facility_state, -facility_zip) 
+      select(-facility_state, -facility_zip)
+    
   }
   
   create_nc_historical_feather_files <- function(path_feather = "./data/processed/nc_by_year_semiprocessed/") {
@@ -416,6 +439,21 @@ get_nc_camping_history <- function(path_feather = "./data/processed/nc_by_year_s
              str_detect(site_type_original, "picnic|zone")               ~ "other",
              TRUE                                                        ~ "other"
            )
+    ) %>%
+    mutate(
+      facility_name = case_when(
+        #str_detect(facility_name, "Cheoah Point Cabin \\d")                                     ~ "Cheoah Point Cabins",
+        str_detect(facility_name, "Big Creek Campground \\(Great Smoky Mountains National Park\\)") ~ "Big Creek Campground",
+        #str_detect(facility_name, "Cove Creek [Upper|Lower] Group Camp")                        ~ "Cove Creek Group Camp",
+        str_detect(facility_name, "Curtis Creek Campground \\(Nc\\)")                           ~ "Curtis Creek Campground",
+        str_detect(facility_name, "Deep Creek Campground \\(Nc\\)")                             ~ "Deep Creek Campground",
+        TRUE                                                                                    ~ facility_name
+      ),
+      # Fix a data error
+      facility_latitude = if_else(facility_name == "Cape Point Campground", 35.235278, facility_latitude),
+      facility_longitude = if_else(facility_name == "Cape Point Campground", -75.535278, facility_longitude),
+      # We'll use this a lot, so let's create it once
+      year = year(start_date)
     ) %>%
     select(path, facility_id, facility_name, site_type, entity_type, use_type, 
            start_date, end_date, number_of_people, nights, person_nights, tidyselect::everything())

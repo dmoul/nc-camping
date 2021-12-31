@@ -19,14 +19,15 @@ options(tigris_use_cache = TRUE)
 
 list(
   tar_target(facilities_all, get_facilities()),
-  tar_target(park_years_usa, get_park_years_usa(facilities_all)),
+  tar_target(federal_orgs, get_federal_orgs()),
   #tar_target(nc_facilities, get_nc_facilities(facilities_all)),
   tar_target(path_nc_history_files, prepare_nc_history()),
-  tar_target(nc_camping_history, get_nc_camping_history(path_feather = path_nc_history_files, 
+  tar_target(nc_camping_history, get_nc_camping_history(#path_feather = path_nc_history_files, 
                                                         facilities = facilities_all)),
   tar_target(nc_camping_history_detail, get_nc_camping_history_dow_detail(nc_camping_history)),
   tar_target(nc_campsites_from_history, get_nc_campsites_from_nc_camping_history(nc_camping_history)),
   tar_target(nc_camping_history_yday, get_nc_camping_history_yday(nc_camping_history)),
-  tar_target(federal_orgs, get_federal_orgs()),
+  tar_target(park_years_usa, get_park_years_usa(facilities_all)),
+  tar_target(park_years_nc, get_park_years_nc(nc_camping_history)),
   NULL
 )

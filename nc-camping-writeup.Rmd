@@ -22,21 +22,21 @@ facilities <- tar_read(facilities_all)
 
 federal_org_info <- tar_read(federal_orgs)
 
-nc_history <- tar_read(nc_camping_history) %>%
-  mutate(
-    facility_name = case_when(
-      #str_detect(facility_name, "Cheoah Point Cabin \\d")                                     ~ "Cheoah Point Cabins",
-      str_detect(facility_name, "Big Creek Campground \\(Great Smoky Mountains National Park\\)") ~ "Big Creek Campground",
-      #str_detect(facility_name, "Cove Creek [Upper|Lower] Group Camp")                        ~ "Cove Creek Group Camp",
-      str_detect(facility_name, "Curtis Creek Campground \\(Nc\\)")                           ~ "Curtis Creek Campground",
-      TRUE                                                                                    ~ facility_name
-    ),
-    # Fix a data error
-    facility_latitude = if_else(facility_name == "Cape Point Campground", 35.235278, facility_latitude),
-    facility_longitude = if_else(facility_name == "Cape Point Campground", -75.535278, facility_longitude),
-    # We'll use this a lot, so let's create it once
-    year = year(start_date)
-  )
+nc_history <- tar_read(nc_camping_history) #%>%
+  # mutate(
+  #   # facility_name = case_when(
+  #   #   #str_detect(facility_name, "Cheoah Point Cabin \\d")                                     ~ "Cheoah Point Cabins",
+  #   #   str_detect(facility_name, "Big Creek Campground \\(Great Smoky Mountains National Park\\)") ~ "Big Creek Campground",
+  #   #   #str_detect(facility_name, "Cove Creek [Upper|Lower] Group Camp")                        ~ "Cove Creek Group Camp",
+  #   #   str_detect(facility_name, "Curtis Creek Campground \\(Nc\\)")                           ~ "Curtis Creek Campground",
+  #   #   TRUE                                                                                    ~ facility_name
+  #   # ),
+  #   # # Fix a data error
+  #   # facility_latitude = if_else(facility_name == "Cape Point Campground", 35.235278, facility_latitude),
+  #   # facility_longitude = if_else(facility_name == "Cape Point Campground", -75.535278, facility_longitude),
+  #   # We'll use this a lot, so let's create it once
+  #   # year = year(start_date)
+  # )
 
 year_min <- year_lower_bound
 year_max <- max(nc_history$year)
@@ -102,14 +102,14 @@ nc_parks_site_types_product_id <- nc_history %>%
 # for cases where only the facility_name or facility_group_id matters, use distinct()
 
 nc_campsites <- tar_read(nc_campsites_from_history) %>%
-  mutate(facility_name = case_when(
-    #str_detect(facility_name, "Cheoah Point Cabin \\d")                                     ~ "Cheoah Point Cabins",
-    str_detect(facility_name, "Big Creek Campground \\(Great Smoky Mountains National Park\\)") ~ "Big Creek Campground",
-    #str_detect(facility_name, "Cove Creek [Upper|Lower] Group Camp")                        ~ "Cove Creek Group Camp",
-    str_detect(facility_name, "Curtis Creek Campground \\(Nc\\)")                           ~ "Curtis Creek Campground",
-    TRUE                                                                                    ~ facility_name
-  )
-  ) %>%
+  # mutate(facility_name = case_when(
+  #   #str_detect(facility_name, "Cheoah Point Cabin \\d")                                     ~ "Cheoah Point Cabins",
+  #   str_detect(facility_name, "Big Creek Campground \\(Great Smoky Mountains National Park\\)") ~ "Big Creek Campground",
+  #   #str_detect(facility_name, "Cove Creek [Upper|Lower] Group Camp")                        ~ "Cove Creek Group Camp",
+  #   str_detect(facility_name, "Curtis Creek Campground \\(Nc\\)")                           ~ "Curtis Creek Campground",
+  #   TRUE                                                                                    ~ facility_name
+  # )
+  # ) %>%
   rename(facility_name_original = facility_name) %>%
   left_join(.,
             nc_parks_site_types %>%
@@ -119,9 +119,11 @@ nc_campsites <- tar_read(nc_campsites_from_history) %>%
             ) %>%
   distinct(facility_id_group, facility_name, campsite_id)
   
+park_years_nc <- tar_read(park_years_nc)
+
 # feather file seems to be flakey, so using targets() cached value instead
 # park_years <- readRDS("./data/processed/park-years.rds") %>% # could use .rds if we wanted to
-park_years <- tar_read(park_years_usa) %>%  
+park_years_usa <- tar_read(park_years_usa) %>%  
   filter(facility_name != "Washington Monument",
          !is.na(start_year)) %>%
   # Fix an error
@@ -273,8 +275,8 @@ Parks are nearly all in the mountains in the West or at coast in the East.
 
 # Crabtree Falls 35.8195°N 82.1508°W
 
-nc_parks_for_map <- park_years %>%
-  filter(facility_state == "NC", start_year >= year_lower_bound) %>%
+nc_parks_for_map <- park_years_nc %>%
+  filter(year_min >= year_lower_bound) %>%
   filter(!str_detect(facility_name, "Crabtree Falls")) %>% #TODO: remove this one lat/lon is in the df
   mutate(facility_name = str_remove(facility_name, " Camp(.*$)?"),
          facility_name = str_remove(facility_name, " Horse(.*$)?"),
@@ -612,24 +614,17 @@ campgrounds_not_all_years <-
   mutate(all_years = FALSE) %>%
   select(-year_min)
 
-consistent <- bind_rows(campgrounds_all_years,
-                        campgrounds_not_all_years) %>%
-  arrange(facility_name, site_type) 
-
-xx <- consistent %>%
+nc_campgrounds_year_min <- 
+  bind_rows(
+    campgrounds_all_years,
+    campgrounds_not_all_years
+  ) %>%
+  arrange(facility_name, site_type) %>%
   mutate(first_word  = str_extract(facility_name, "\\w+")) %>%
   group_by(first_word) %>%
   mutate(n_site_types = n(),
          ignore = sum(all_years) == 0) %>%
   ungroup()
-# TODO: above is not giving me what I want
-
-x1 <- xx %>%
-  filter(ignore)
-
-x2 <- xx %>%
-  filter(!all_years & n_site_types > 1,
-         !ignore)
 
 ```
 
@@ -638,16 +633,23 @@ x2 <- xx %>%
 The following campgrounds did not offer any reservable sites in `r year_lower_bound` :
 
 ```{r}
-x1 %>% select(facility_id, facility_name, first_year = year) %>%
+nc_campgrounds_year_min %>%
+  filter(ignore) %>% 
+  select(facility_id, facility_name, first_year = year) %>%
   gt()
 ```
 
+<br><br>
 
+The following campgrounds had at least one site_type reserveable in `r year_lower_bound` and added the site_type in the year noted below:
 
-The following campgrounds had at least one site_type reserveable in `r year_lower_bound` and added the site_type noted below in a later year:
+<br>
 
 ```{r}
-x2 %>% select(facility_id, facility_name, site_type, first_year = year) %>%
+nc_campgrounds_year_min %>%
+  filter(!all_years & n_site_types > 1,
+         !ignore) %>% 
+  select(facility_id, facility_name, site_type, first_year = year) %>%
   gt()
 ```
 
@@ -1774,13 +1776,9 @@ product_id_counts %>%
 It seems recreation.gov included existing reservable NC inventory by the end of 2008. So we will start with `r year_lower_bound` in most cases. Note that some existing campsites were added later when they became reservable, for example the NPS campgrounds at Cape Hatteras: Oregon Inlet and Frisco started taking reservations in 2015, and Cape Point started in 2016 (at the end of 2021 Camp Point was taking same-day reservations only according to https://www.nps.gov/caha/planyourvisit/campgrounds.htm).
 
 ```{r}
-parks_nc_all_years_overnight_for_plot <- park_years %>%
-  filter(facility_state == "NC") %>%
-  group_by(facility_id, facility_name, site_type) %>%
-  summarize(n_years = n(),
-            year_min = min(start_year, na.rm = TRUE),
-            year_max = max(start_year, na.rm = TRUE)
-  ) %>%
+parks_nc_all_years_overnight_for_plot <- park_years_nc %>%
+  group_by(facility_id, facility_name, site_type, year_min, year_max) %>%
+  summarize(n_years = n()) %>%
   ungroup() %>%
   filter(site_type != "management") %>%
   mutate(site_type = fct_reorder(site_type, -n_years))
@@ -1817,7 +1815,7 @@ NC inventory on-boarding at recreation.gov seems generally consistent with the r
 ```{r}
 year_lower_bound <- 2009
 
-parks_all_years_overnight_for_plot <- park_years %>%
+parks_all_years_overnight_for_plot <- park_years_usa %>%
   group_by(facility_id, facility_name, site_type) %>%
   summarize(n_years = n(),
             year_min = min(start_year, na.rm = TRUE),
@@ -1877,7 +1875,7 @@ CAGR_formula <- function(FV, PV, yrs) {
   (FV/PV)^(1/yrs)-1
 }
 
-parks_all_years_overnight_for_plot <- park_years %>%
+parks_all_years_overnight_for_plot <- park_years_usa %>%
   filter(site_type != "management",
          start_year >= year_lower_bound) %>%
   group_by(start_year, site_type) %>%
@@ -1926,7 +1924,7 @@ parks_all_years_overnight_for_plot %>%
 <br>
 
 ```{r usa-by-state}
-park_years %>%
+park_years_usa %>%
   filter(start_year == 2020) %>%
   distinct(facility_state, facility_id, site_type, .keep_all = TRUE) %>%
   group_by(facility_state) %>%
@@ -1974,6 +1972,8 @@ Some recreation areas allow camping; only two in the data set are reservable; th
 * Look at growth only in facilities + site_type that existed in 2009. This would avoid adding to the growth rate due to facilities that converted camp sites to reservable during the years of interest (and thus started showing up in the data).
 
 * DONE: As noted in [What's possible given these data sets?] the site-type categories {standard, tent, rv} overlap. I could recategorize standard sites to tent camping except in RV-only campsites, in which case I would allocate them to rv camping.
+
+* Adjust nc_day, nc_week, nc_week_n_camps_occupied to use nc_history_detail instead (rather than relying on reservation start_date)
 
 * In time series analysis, 
 
