@@ -1234,12 +1234,11 @@ nc_week_occupancy2 <- nc_week2 %>%
 
 ```
 
-Some observations
+Some notes:
 
-* Autumn is a very popular time to camp--more than the spring.
-* There aren't many campgrounds offering overnight reservations during the winter months.
-* The 2019 and 2020 data seem suspect, especially for group sites.
-* In 2020 it looks like most facilities were closed at the end of September.
+* As one would expect, there is tent camping earlier and later in the year outside the mountains.
+* The patterns of tent camping everywhere and RV camping in the mountains have been remarkably consistent week-to-week
+* Cabins in the mountains and RV sites elsewhere appear to be fully booked at least one day every week. Is this actually true? Seems more likely this is an analysis error.
 
 
 ```{r camp-by-week-type, fig.height=9, fig.width=9, out.width="100%"}
@@ -1281,7 +1280,7 @@ nc_week_occupancy2 %>%
 
 ## Max occupancy
  
-How many days have campground + site type experienced max occupancy? Frankly, not as many as I expected. Here are two views of the same information. A list of the campsites are in Appendix 1 [Days with occupancy at 100% and 90%]
+How many days have campground + site type experienced max occupancy? Frankly, not as many as I expected. Here are two views of the same information. A list of the campsites are in Appendix 1 [Days with occupancy at 100 and 90 percent]
 
 <br>
 
@@ -1887,7 +1886,7 @@ parks_nc_all_years_overnight_for_plot %>%
 
 <br>
 
-## Days with occupancy at 100% and 90%
+## Days with occupancy at 100 and 90 percent
 
 ```{r}
 max_occupancy_by_year_season  %>%
@@ -2104,5 +2103,7 @@ By Daniel Moul (heydanielmoul via gmail)
 <img src="https://i.creativecommons.org/l/by/4.0/88x31.png" alt="CC-BY" /> This work is licensed under a <a href="http://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International License</a>
 
 Code is available at https://github.com/dmoul/nc-camping under the [MIT license](https://github.com/dmoul/nc-camping/blob/main/LICENSE). 
+
+Other analyses in this series can be found at https://dmoul.github.io
 
 <br><br>
