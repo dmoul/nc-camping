@@ -546,4 +546,9 @@ Once I understand more about what acf1 and season_acf1 indicate, this might tell
 
 * Use methods appropriate for low numbers of integer counts.  See https://otexts.com/fpp3/counts.html :
 
-> All of the methods discussed in this book assume that the data have a continuous sample space. But often data comes in the form of counts. For example, we may wish to forecast the number of customers who enter a store each day.... In practice, this rarely matters provided our counts are sufficiently large...  However, if our data contains small counts...then we need to use forecasting methods that are more appropriate for a sample space of non-negative integers. Such models are beyond the scope of this book.
+    > All of the methods discussed in this book assume that the data have a continuous sample space. But often data comes in the form of counts. For example, we may wish to forecast the number of customers who enter a store each day.... In practice, this rarely matters provided our counts are sufficiently large...  However, if our data contains small counts...then we need to use forecasting methods that are more appropriate for a sample space of non-negative integers. Such models are beyond the scope of this book.
+
+* Use percent of max_occupancy on each day for each facility_name + site_type. Is that more interesting/helpful than overnight counts? It would normalize for number of sites. However, the max_occupancy for some facilities + site_type is quite low (for example, two or three group sites in a campground). Will STL find it difficult if there are large steps in the percent max_occupancy values?
+    
+* Would a hierarchical time series model be helpful? I could use facility_id_group as the higher-level series and keep using facility_name + site_type as the lower-level series.
+    
