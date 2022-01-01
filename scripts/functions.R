@@ -531,31 +531,65 @@ get_nc_camping_history_dow_detail <- function(tbl) {
   
 }
 
+### ORIGINAL ###
+# get_nc_camping_history_yday <- function(tbl) {
+#   # INPUT: df with nc_camping_history
+#   # OUTPUT: much larger df with one row for each day of the week each reservation included
+#   
+#   # test
+#   # tbl <- nc_history
+#   
+#   tbl %>%
+#     filter(nights > 0) %>%
+#     mutate(year = year(start_date)) %>%
+#     # for testing
+#     # filter(year == 2017#,
+#     #        #facility_name == "Badin Lake Campground"
+#     #        ) %>% # limit data for testing
+#     # head(10) %>% 
+#     mutate(all_days = map2(start_date, nights, ~ seq(from = .x, 
+#                                                      to = .x + .y -1, 
+#                                                      by = 1)
+#     ),
+#     yday_of_reservation = map(all_days, yday), 
+#     days_of_reservation = map(all_days, ~ wday(.x, label = TRUE, abbr = TRUE)),
+#     all_days_string = map_chr(days_of_reservation, glue_collapse, sep = ", "),
+#     week_of_reservation = map(yday_of_reservation, ~ floor(.x / 7) + 1),
+#     week_of_reservation2 = map(all_days, ~epiweek(as.Date(.x, origin = "1970-01-01"))),
+#     week_string = map_chr(week_of_reservation, glue_collapse, sep = ", "),
+#     season = if_else(between(yday(start_date),
+#                              yday(summer_season_start),
+#                              yday(summer_season_end)
+#                              ),
+#                      "summer",
+#                      "off-season"
+#                      ),
+#     row_id = row_number()
+#     ) %>%
+#     select(row_id, year, facility_name, site_type, start_date, nights, 
+#            all_days, days_of_reservation, yday_of_reservation, 
+#            week_of_reservation, week_of_reservation2, week_string, season)
+#   
+# }
+
+### UPDATED to use nc_history_detail
 get_nc_camping_history_yday <- function(tbl) {
-  # INPUT: df with nc_camping_history
+  # INPUT: df with nc_camping_history_detail
   # OUTPUT: much larger df with one row for each day of the week each reservation included
-  
+
   # test
   # tbl <- nc_history
-  
+
   tbl %>%
-    filter(nights > 0) %>%
-    mutate(year = year(start_date)) %>%
-    # for testing
-    # filter(year == 2017#,
-    #        #facility_name == "Badin Lake Campground"
-    #        ) %>% # limit data for testing
-    # head(10) %>% 
-    mutate(all_days = map2(start_date, nights, ~ seq(from = .x, 
-                                                     to = .x + .y -1, 
-                                                     by = 1)
-    ),
-    yday_of_reservation = map(all_days, yday), 
-    days_of_reservation = map(all_days, ~ wday(.x, label = TRUE, abbr = TRUE)),
-    all_days_string = map_chr(days_of_reservation, glue_collapse, sep = ", "),
-    week_of_reservation = map(yday_of_reservation, ~ floor(.x / 7) + 1),
-    week_string = map_chr(week_of_reservation, glue_collapse, sep = ", "),
-    season = if_else(between(yday(start_date),
+    #filter(nights > 0) %>%
+    mutate(year = year(start_date),
+    yday_of_reservation = yday(overnight_date),
+    day_of_reservation = wday(overnight_date, label = TRUE, abbr = TRUE),
+    #all_days_string = map_chr(days_of_reservation, glue_collapse, sep = ", "),
+    week_of_reservation = floor(yday_of_reservation / 7) + 1,
+    week_of_reservation2 = epiweek(overnight_date),
+    #week_string = map_chr(week_of_reservation, glue_collapse, sep = ", "),
+    season = if_else(between(yday(overnight_date),
                              yday(summer_season_start),
                              yday(summer_season_end)
                              ),
@@ -564,8 +598,8 @@ get_nc_camping_history_yday <- function(tbl) {
                      ),
     row_id = row_number()
     ) %>%
-    select(row_id, year, facility_name, site_type, start_date, nights, 
-           all_days, days_of_reservation, yday_of_reservation, week_of_reservation, week_string, season)
-  
-}
+    select(row_id, year, facility_name, site_type, start_date, overnight_date,
+           day_of_reservation, yday_of_reservation,
+           week_of_reservation, week_of_reservation2, season)
 
+}

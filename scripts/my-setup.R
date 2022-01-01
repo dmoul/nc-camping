@@ -16,6 +16,7 @@ library(sf) # for map
 library(tigris) # for counties() boundaries used in map
 library(ggthemes) # for theme_map()
 library(ggrepel) # for geom_text_repel()
+library(patchwork)
 library(hrbrthemes) # for theme_ipsum_ps() and import_plex_sans()
 ## remotes::install_github("hrbrmstr/hrbrthemes")
 ## run 2021-08-01 to address segfault errors like this:

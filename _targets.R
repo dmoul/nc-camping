@@ -26,7 +26,8 @@ list(
                                                         facilities = facilities_all)),
   tar_target(nc_camping_history_detail, get_nc_camping_history_dow_detail(nc_camping_history)),
   tar_target(nc_campsites_from_history, get_nc_campsites_from_nc_camping_history(nc_camping_history)),
-  tar_target(nc_camping_history_yday, get_nc_camping_history_yday(nc_camping_history)),
+  #tar_target(nc_camping_history_yday, get_nc_camping_history_yday(nc_camping_history)),
+  tar_target(nc_camping_history_yday, get_nc_camping_history_yday(nc_camping_history_detail)),
   tar_target(park_years_usa, get_park_years_usa(facilities_all)),
   tar_target(park_years_nc, get_park_years_nc(nc_camping_history)),
   NULL
