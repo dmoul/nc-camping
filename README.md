@@ -2,7 +2,12 @@
 
 by Daniel Moul
 
-December 2021
+January 2022
+
+<br>
+
+Read the writeup: [Camping in NC at Federal Facilities 2009-2020](https://dmoul.github.io/nc-camping/nc-camping-writeup.html)
+
 
 <br>
 
@@ -46,4 +51,4 @@ To recreate this analysis:
 
 7. Knit nc-camping-writeup.Rmd
 
-7. See nc-camping-writeup.html
+8. See nc-camping-writeup.html
