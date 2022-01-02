@@ -120,8 +120,10 @@ get_park_years_nc <- function(nc_hist) {
   # nc_hist <- nc_history
   
   park_years <- nc_hist %>%
-    group_by(facility_id, facility_name, site_type, agency, facility_longitude, facility_latitude) %>%
-    summarize(year_min = min(year),
+    group_by(facility_id, facility_name, site_type, agency) %>%
+    summarize(facility_longitude = last(facility_longitude), # remove dups
+              facility_latitude = last(facility_latitude), # remove dups
+              year_min = min(year),
               year_max = max(year)) %>%
     ungroup()
   

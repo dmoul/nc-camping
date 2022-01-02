@@ -169,9 +169,9 @@ I wondered, in North Carolina ...
 
 <br>
 
-## What's possible given these data set?
+## What's possible given this data set?
 
-First one must check: what's in the data, and are there any important limitations? I found five:
+First: what's in the data, and are there any important limitations? I found five:
 
 1. [recreation.gov](https://recreation.gov/) mostly processes reservations for federal facilities. It does not process reservations for state-owned public campgrounds in North Carolina. NC State Parks use [ReserveAmerica.com](https://ReserveAmerica.com/) instead, thus the campgrounds closest to my home in the [Jordan Lake State Recreation Area](https://www.ncparks.gov/jordan-lake-state-recreation-area/home) and my favorite at [Mount Mitchell](https://www.ncparks.gov/mount-mitchell-state-park/home) are not included in this data set. As noted at https://www.ncparks.gov/find-a-park :
 
@@ -179,7 +179,7 @@ First one must check: what's in the data, and are there any important limitation
 
 2. Some campsites are not reservable, and some may not be reservable in the off season. So by definition, use of these sites will not show up in this data set.
 
-3. Some campsites have become reservable during the years covered in this data set. For example, the NPS campgrounds at Cape Hatteras: Oregon Inlet and Frisco started taking reservations in 2015, and Cape Point started in 2016. Including these campgrounds unduly inflates the mulit-year growth rate.
+3. Some campsites have become reservable during the years covered in this data set. For example, the NPS campgrounds at Cape Hatteras: Oregon Inlet and Frisco started taking reservations in 2015, and Cape Point started in 2016. When looking at mulit-year growth, including these campgrounds unduly inflates the growth rate.
 
 4. As is visible in the per-campground trend data starting with [camping person-nights by park], there are a lot of outliers in the data in 2018, 2019, and 2020. Thus I have varied the end year as I saw fit to communicate trends most clearly. Likely there are two causes to these anomalies: 
 
@@ -805,7 +805,7 @@ Part 2:
 
 <br>
 
-## Are the increases occurring during a particular time of the year?
+## Are the increases occurring during the summer or off-season?
 
 Defining the summer season to be the four months `r month(summer_season_start, label = TRUE)` `r day(summer_season_end)` to `r month(summer_season_end, label = TRUE)` `r day(summer_season_end)`, one can see that most camps are busiest during the summer. And while the number of camping person-nights has increased year-round, for most campgrounds, more of the growth has been during the summer:
 
@@ -1014,7 +1014,7 @@ p1 + p2
 
 ## What is the occupancy rate at NC campgrounds, and when are they fullest?
 
-Since I don't have a declared number of sites per facility+site_type that is reliable, I define percent occupancy as the percent of the maximum recorded occupancy for the campground + site type, where "maximum recorded" is over the years of interest. 
+Since the data set does not incluce a declared number of sites per facility+site_type that is reliable, I calculate the daily and weekly percent occupancy as the percent of the maximum recorded occupancy for the campground + site type over the years of interest. 
 
 Percent occupancy is defined as follows, for all facilities offering reservations at the time:
 
@@ -1022,13 +1022,11 @@ Percent occupancy is defined as follows, for all facilities offering reservation
 
 * Weekly: weighted mean percent of occupancy for that week 
 
-* Yearly: mean occupancy rate for all days of the year
-
 <br>
 
 Limitations
 
-* I am looking at `r year_lower_bound`-2017, since the data in 2018 and 2019 are unreliable, and usage patterns earlier and in 2020 were not typical. In some plots I further subset the data in the interest of readability.
+* I am looking at `r year_lower_bound`-2017, since the data in 2018 and 2019 are unreliable, and usage patterns in 2020 were not typical. In some plots I further subset the data in the interest of readability.
 
 * Is 100% occupancy rate the same as max occupancy? I cannot determine that from the data. Can one assume that each campground + site type reached 100% occupancy at least once? If so, then yes, max occupancy would mean 100% occupancy.
 
@@ -1236,7 +1234,7 @@ nc_week_occupancy2 <- nc_week2 %>%
 
 Some notes:
 
-* As one would expect, there is tent camping earlier and later in the year outside the mountains.
+* As one would expect, there is tent camping earlier and later in the year at the coast and in the Piedmont, where the weather is more moderate.
 * The patterns of tent camping everywhere and RV camping in the mountains have been remarkably consistent week-to-week
 * Cabins in the mountains and RV sites elsewhere appear to be fully booked at least one day every week. Is this actually true? Seems more likely this is an analysis error.
 
@@ -1267,7 +1265,7 @@ nc_week_occupancy2 %>%
   theme(panel.grid.major.x = element_blank()) +
   guides(color = guide_legend(reverse = TRUE, override.aes = list(size = 3))) +
   labs(title = "NC camping occupancy rate by week",
-       subtitle = glue("Red vertical lines indicate summer season (start: {summer_season_start}, end: {summer_season_end})",
+       subtitle = glue("Red vertical lines indicate summer season (start: May 15, end: Sep 15)",
                        "\nBlue line is week including July 4th"),
        x = "week of the year",
        y = "occupancy (% of max occupancy across NC)",
@@ -1281,8 +1279,6 @@ nc_week_occupancy2 %>%
 ## Max occupancy
  
 How many days have campground + site type experienced max occupancy? Frankly, not as many as I expected. Here are two views of the same information. A list of the campsites are in Appendix 1 [Days with occupancy at 100 and 90 percent]
-
-<br>
 
 ```{r}
 max_occupancy_by_year_season <- nc_yday_occupancy %>%
@@ -1323,7 +1319,7 @@ p2 <- max_occupancy_by_year_season %>%
   theme(legend.position = "bottom",
         panel.grid.major.x = element_blank()) +
   labs(title = "",
-       subtitle = glue("ECDF"),
+       subtitle = glue("A cumulative view"),
        y = NULL)
 
 p1 + p2
@@ -1332,8 +1328,6 @@ p1 + p2
 <br>
 
 What about days >= 90% occupancy instead of 100%? Still not as many as I expected.
-
-<br>
 
 ```{r}
 max_occupancy_by_year_season_90pc <- nc_yday_occupancy %>%
@@ -1374,7 +1368,7 @@ p2 <- max_occupancy_by_year_season_90pc %>%
   theme(legend.position = "bottom",
         panel.grid.major.x = element_blank()) +
   labs(title = "",
-       subtitle = "ECDF",
+       subtitle = "A cumulative view",
        y = NULL)
 
 p1 + p2
@@ -1591,9 +1585,9 @@ nc_history_for_plot %>%
 
 Median cabin cost per person doubled in 2012, and equestrian per-person cost grew 2013- 2017. Otherwise median prices were generally stable. Note that these costs are not inflation-adjusted.
 
-Per-person costs at group and equestrian sites in 2020 seem like an aberration: either the more expensive sites were not used much, group sizes were a lot larger (seems unlikely during the pandemic), or there was some other change in usage pattern. Or there could be a problem with the data.
+Per-person costs at group and equestrian sites in 2020 seem like an aberration: either the more expensive sites were not used much, group sizes were a lot larger (which seems unlikely during the pandemic), there was some other change in usage pattern, or there could be a problem with the data.
 
-```{r nc-great-value, fig.width=9, fig.height=6}
+```{r nc-great-value, fig.width=9, fig.height=6, out.width="100%"}
 nc_camping_cost <- nc_history %>%
   filter(year >= year_lower_bound,
          !str_detect(site_type, "management")) %>%
@@ -1631,9 +1625,7 @@ nc_camping_cost %>%
 
 # Summary
 
-Truly there are more people camping more nights at NC public facilities. The clearest increase can be seen in [Are there trends by day of the week?] in the plot *NC camping each night of the week (person-nights)*: each year, each day of the week, in the summer and off-season, there were more people camping (until the pandemic derailed the trend in 2020).
-
-I wonder whether growth at the NC state parks was similar over this time period. My hunch is that the NC parks are more often at max occupancy, so the growth rate may be capped. If the same data were available from ReserveAmerica.com perhaps I would do a similar analysis. Supposedly there is an API at https://developer.active.com/docs/read/Campground_APIs, however the comments suggest it is no longer available. The North Carolina Division of Parks and Recreation is part of the [N.C. Department of Natural and Cultural Resources](https://www.ncdcr.gov/about). Do make the data available? I couldn't find it in any of the NC government-sponsored open data portals. Would they make the data available if I ask?
+Truly there are more people camping more nights at federally-owned facilities in North Carolina. The clearest increase can be seen in [Are there trends by day of the week?] in the plot *NC camping each night of the week (person-nights)*: each year, every day of the week, in the summer and off-season, there were more people camping. Until the pandemic derailed the trend in 2020.
 
 <br>
 
@@ -1888,6 +1880,8 @@ parks_nc_all_years_overnight_for_plot %>%
 
 ## Days with occupancy at 100 and 90 percent
 
+<br>
+
 ```{r}
 max_occupancy_by_year_season  %>%
   gt() %>%
@@ -1923,8 +1917,6 @@ max_occupancy_by_year_season_90pc %>%
 NC inventory on-boarding at recreation.gov seems generally consistent with the rest of the USA: 2008 was the first year that recreation.gov was able to offer reservations on nearly all of the existing camping facilities across the USA. So comparing later years with a 2009 baseline provides our best view of year-to-year increases in inventory in the parks. This includes some new or existing parks coming on-line as well, as seen above in the parks that have data only for very recent years.
 
 ```{r}
-year_lower_bound <- 2009
-
 parks_all_years_overnight_for_plot <- park_years_usa %>%
   group_by(facility_id, facility_name, site_type) %>%
   summarize(n_years = n(),
@@ -2086,17 +2078,13 @@ Some recreation areas allow camping; only two in the data set are reservable; th
 
 * Add overall growth and CAGR to summary person_nights and revenue plots.
 
+* I wonder whether growth at the NC state parks was similar over this time period. My hunch is that the NC parks are more often at max occupancy, so the growth rate may be capped. If the same data were available from ReserveAmerica.com perhaps I would do a similar analysis. Supposedly there is an API at https://developer.active.com/docs/read/Campground_APIs, however the comments there suggest it is no longer available. The North Carolina Division of Parks and Recreation is part of the [N.C. Department of Natural and Cultural Resources](https://www.ncdcr.gov/about). Do they make the data available? I couldn't find it in any of the NC government-sponsored open data portals. Might they make the data available if I ask?
+
 * For full-USA view, it might be interesting to normalize n_parks and/or n_sights by state population or state area to see which sites have a relative abundance or lack of federal campgrounds and/or campsites.
 
-* In time series analysis (in explore-ts.Rmd; not included here at this time), 
-
-    - Use percent of max_occupancy on each day for each facility_name + site_type. Is that more interesting/helpful than overnight counts? It would normalize for number of sites. However, the max_occupancy for some facilities + site_type is quite low (for example, two or three group sites in a campground). Will STL find it difficult if there are large steps in the percent max_occupancy values?
-    
-    - Would a hierarchical time series model be helpful? I could use facility_id_group as the higher-level series and keep using facility_name + site_type as the lower-level series.
-    
 <br>
 
-# Copyright
+# Copyright and license
 
 By Daniel Moul (heydanielmoul via gmail)
 
