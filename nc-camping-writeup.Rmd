@@ -322,7 +322,8 @@ ggplot() +
   labs(title = "NC public facilities with overnight reservations",
        subtitle = glue("at recreation.gov {year_lower_bound} - 2020"),
        color = "Agency:",
-       size = "Number of sites:"
+       size = "Number of sites:",
+       caption = my_caption
   )
 ```
 
@@ -332,7 +333,7 @@ ggplot() +
 
 About half the campgrounds have at least 50 campsites:
 
-```{r nc-site-count-ecdf, out.width="100%", fig.width=8}
+```{r nc-site-count-ecdf, fig.width=9, fig.height=6, out.width="100%"}
 nc_campsites %>%
   count(facility_id_group, facility_name, name = "n_sites") %>%
   ggplot(aes(n_sites)) +
@@ -342,7 +343,8 @@ nc_campsites %>%
   scale_y_continuous(labels = percent_format()) +
   labs(title = glue("Percent of all {nrow(distinct(nc_parks_site_types, facility_id_group))}", 
                     " NC campgrounds \nwith at least n_site campsites"),
-       y = "")
+       y = "",
+       caption = my_caption)
 ```
 
 <br>
@@ -556,7 +558,8 @@ p2 <- nc_camping_person_nights_and_revenue_site_type_camps_all_years %>%
        subtitle = "Excludes facility + site_type combos not reservable in initial year",
        x = NULL,
        fill = "Site type",
-       tag = "(B)")
+       tag = "(B)",
+       caption = my_caption)
 
 p1 + p2
 ```
@@ -643,6 +646,50 @@ cagr_for_table %>%
 
 <br><br>
 
+The changes year-to-year are more variable than the above table implies:
+
+```{r normalizing-growth, fig.width=9, fig.height=6, out.width="100%"}
+xx <- nc_camping_person_nights_and_revenue_site_type_camps_all_years %>%
+  group_by(year, site_type) %>%
+  summarize(person_nights_yearly_sum = sum(person_nights)) %>%
+  ungroup() %>%
+  group_by(site_type) %>%
+  mutate(pn_year_start = sum(person_nights_yearly_sum[year == 1])) %>%
+  ungroup() %>%
+  group_by(year, site_type) %>%
+  summarize(person_nights_normalized = 100 * person_nights_yearly_sum / pn_year_start) %>%
+  ungroup() %>%
+  mutate(year = year + 2008)
+
+xx_yearly_sum <- nc_camping_person_nights_and_revenue_site_type_camps_all_years %>%
+  mutate(pn_year_start = sum(person_nights[year == 1])) %>%
+  group_by(year) %>%
+  summarize(person_nights_yearly_sum = sum(person_nights),
+            person_nights_normalized = 100 * person_nights_yearly_sum / pn_year_start) %>%
+  ungroup() %>%
+  distinct(year, .keep_all = TRUE) %>%
+  mutate(year = year + 2008)
+
+```
+
+```{r}
+xx %>%
+  ggplot() +
+  geom_line(aes(year, person_nights_normalized, color = site_type), size = 0.5, alpha = 0.4) +
+  geom_point(aes(year, person_nights_normalized, color = site_type, size = ), size = 2, alpha = 0.9) +
+  geom_smooth(data = xx_yearly_sum,
+              aes(year, person_nights_normalized)
+              ) +
+  scale_x_continuous(breaks = c(2010, 2015, 2020)) +
+  scale_color_viridis_d(end = 0.8) +
+  expand_limits(y = 0.8 * min(xx$person_nights_normalized)) +
+  labs(title = "Person nights by site_type",
+       subtitle = glue("{min(xx$year)}-{max(xx$year)}; {min(xx$year)} = 100"),
+       x = NULL,
+       caption = my_caption
+  )
+```
+
 ## Trends in person-nights and revenue per park
 
 ```{r}
@@ -712,7 +759,8 @@ plot_nc_camping_person_nights <- function(tbl) {
   labs(title = "NC person-nights camping per year by campground",
        subtitle = "Y axis varies. Subplots ordered by decending maximum yearly person-nights",
        x = "",
-       y = "")
+       y = "",
+       caption = my_caption)
 }
 
 p1 <- plot_nc_camping_person_nights(part1_person_nights)
@@ -778,7 +826,8 @@ plot_nc_camping_revenue <- function(tbl) {
   labs(title = "NC camping revenue per year by campground (summer and off-season)",
        subtitle = "Y axis varies. Subplots ordered by decending maximum yearly camping revenue",
        x = "",
-       y = "")
+       y = "",
+       caption = my_caption)
 }
 
 p3 <- plot_nc_camping_revenue(part1_revenue)
@@ -878,7 +927,8 @@ p2 <- nc_camping_person_nights_and_revenue_site_type_camps_all_years %>%
        x = NULL,
        y = "Overnight camping revenue",
        fill = "Site type",
-       tag = "(B)")
+       tag = "(B)",
+       caption = my_caption)
 
 p1 + p2
 ```
@@ -974,7 +1024,8 @@ plot_nc_season_person_nights <- function(tbl) {
   labs(title = "NC person-nights camping per year by campground",
        subtitle = "Y axis varies. Subplots ordered by decending maximum yearly person-nights",
        x = "",
-       y = "")
+       y = "",
+       caption = my_caption)
 }
 
 p5 <- plot_nc_season_person_nights(part1_person_nights)
@@ -1006,6 +1057,8 @@ Part 2:
 
 ## Are there trends by day of the week?
 
+Weekend nights are about twice as popular as mid-week:
+
 ```{r camp-by-dow, fig.width=8}
 nc_history_detail %>%
   filter(year >= year_lower_bound) %>%
@@ -1014,22 +1067,23 @@ nc_history_detail %>%
   ggplot(aes(dow, n, fill = season)) +
   geom_col(alpha = 0.7) + 
   scale_y_continuous(
-    labels = label_number_si(),
-    sec.axis = sec_axis(trans = ~ .x / max(.x),
-                        labels = percent_format(),
-                        name = "Percentage of largest")
+    labels = label_number_si()#,
+    # sec.axis = sec_axis(trans = ~ .x / max(.x),
+    #                     labels = percent_format(),
+    #                     name = "Percentage of largest")
   ) +
   scale_fill_viridis_d(end = 0.8) +
   theme(panel.grid.major.x = element_blank()) +
   labs(title = "NC camping each night of the week",
        x = "",
-       y = "person-nights")
+       y = "person-nights",
+       caption = my_caption)
 
 ```
 
 <br>
 
-The increasing yearly number of person-nights occurred for all nights. The most noticeable anomaly is extra Sunday, Monday and Tuesday night camping in 2020. Presumably this was due to the pandemic shutdown, perhaps because people had fewer recreational options than other years. The unusually low off-season 2020 numbers probably reflect camp closures.
+There are increasing yearly number of person-nights on all nights of the week. The most noticeable 2020 anomaly is extra Sunday, Monday and Tuesday night camping. Presumably this was due to the pandemic shutdown, perhaps because people had fewer recreational options than other years. The unusually low off-season 2020 numbers probably reflect camp closures.
 
 The pattern is the same whether one includes all facility+site_type combos or not:
 
@@ -1056,10 +1110,10 @@ p1 <- p1_data %>%
   geom_line() + 
   geom_point() + 
   scale_y_continuous(
-    labels = label_number_si(),
-    sec.axis = sec_axis(trans = ~ .x / max(.x),
-                        labels = percent_format(),
-                        name = "Percentage of largest")
+    labels = label_number_si()#,
+    # sec.axis = sec_axis(trans = ~ .x / max(.x),
+    #                     labels = percent_format(),
+    #                     name = "Percentage of largest")
   ) +
   scale_color_viridis_d(end = 0.92) +
   expand_limits(y = c(0, y_axis_max_dow_n)) +
@@ -1078,10 +1132,10 @@ p2 <- p2_data %>%
   geom_line() + 
   geom_point() + 
   scale_y_continuous(
-    labels = label_number_si(),
-    sec.axis = sec_axis(trans = ~ .x / max(.x),
-                        labels = percent_format(),
-                        name = "Percentage of largest")
+    labels = label_number_si() #,
+    # sec.axis = sec_axis(trans = ~ .x / max(.x),
+    #                     labels = percent_format(),
+    #                     name = "Percentage of largest")
   ) +
   scale_color_viridis_d(end = 0.92) +
   expand_limits(y = c(0, y_axis_max_dow_n)) +
@@ -1093,7 +1147,8 @@ p2 <- p2_data %>%
   labs(title = "",
        subtitle = "Excludes facility + site_type combos not reservable in initial year",
        x = "",
-       tag = "(B)")
+       tag = "(B)",
+       caption = my_caption)
 
 p1 + p2
 
@@ -1205,7 +1260,8 @@ top_occupancy_by_year %>%
        subtitle = glue("{year_start}-{year_stop}"),
        x = "",
        color = "Site type:",
-       size = "Number of campsites:")
+       size = "Number of campsites:",
+       caption = my_caption)
 
 
 ```
@@ -1243,13 +1299,14 @@ top_occupancy_by_year_season %>%
        subtitle = glue("{year_start}-{year_stop}"),
        x = "",
        color = "Site type:",
-       size = "Number of campsites:")
+       size = "Number of campsites:",
+       caption = my_caption)
        
 ```
 
 <br>
 
-What if one considers only Friday and Saturday nights, the most popular nights for camping?
+When considering only Friday and Saturday nights, which are the most popular nights for camping:
   
 ```{r fig.height=12, fig.width=12, out.width="100%"}
 top_occupancy_by_year_season_weekend <- nc_yday_occupancy %>%
@@ -1281,7 +1338,8 @@ top_occupancy_by_year_season_weekend %>%
        subtitle = glue("Friday and Saturday nights only {year_start}-{year_stop}"),
        x = "",
        color = "Site type:",
-       size = "Number of campsites:")
+       size = "Number of campsites:",
+       caption = my_caption)
        
 ```
 
@@ -1361,7 +1419,8 @@ nc_week_occupancy2 %>%
        x = "week of the year",
        y = "occupancy (% of max occupancy across NC)",
        color = "Year",
-       size = "Number of\ncampgrounds")
+       size = "Number of\ncampgrounds",
+       caption = my_caption)
 
 ```
 
@@ -1411,7 +1470,8 @@ p2 <- max_occupancy_by_year_season %>%
         panel.grid.major.x = element_blank()) +
   labs(title = "",
        subtitle = glue("A cumulative view"),
-       y = NULL)
+       y = NULL,
+       caption = my_caption)
 
 p1 + p2
 ```
@@ -1460,7 +1520,8 @@ p2 <- max_occupancy_by_year_season_90pc %>%
         panel.grid.major.x = element_blank()) +
   labs(title = "",
        subtitle = "A cumulative view",
-       y = NULL)
+       y = NULL,
+       caption = my_caption)
 
 p1 + p2
 ```
@@ -1502,7 +1563,8 @@ nc_history %>%
        subtitle = "Percent of NC bookings by x days before start_date",
        x = "Days before reservation starts",
        y = "",
-       color = "Site type")
+       color = "Site type",
+       caption = my_caption)
 ```
 
 <br>
@@ -1533,7 +1595,8 @@ nc_history %>%
        subtitle = "Percent of NC bookings by x days before start_date",
        x = "Days before reservation starts",
        y = "",
-       color = "Site type")
+       color = "Site type",
+       caption = my_caption)
 ```
 
 <br>
@@ -1570,7 +1633,8 @@ nc_history %>%
        subtitle = "Percent of NC bookings by x days before start_date",
        x = "Days before reservation starts",
        y = "",
-       color = "Site type")
+       color = "Site type",
+       caption = my_caption)
 ```
 
 <br>
@@ -1606,7 +1670,8 @@ plot_order_to_start_by_site_type <- function(tbl) {
          subtitle = "Percent of bookings by x days before start_date",
          x = "Days before reservation starts",
          y = "",
-         color = "Site type")
+         color = "Site type",
+       caption = my_caption)
   
 }
 ```
@@ -1708,7 +1773,8 @@ nc_camping_cost %>%
        x = "",
        y = "",
        color = "Site type",
-       size = "Number of\nperson nights")
+       size = "Number of\nperson nights",
+       caption = my_caption)
 
 ```
 
@@ -1957,7 +2023,8 @@ parks_nc_all_years_overnight_for_plot %>%
                        "\nLater years are likely organic growthn or conversion of sites from non-reservable to reservable"),
        x = "Year newly offering overnight reservations for each kind of site at recreation.gov",
        y = "Number of facilities in NC",
-       fill = "Site type"
+       fill = "Site type",
+       caption = my_caption
   )
 ```
 
@@ -2029,7 +2096,8 @@ parks_all_years_overnight_for_plot %>%
                        "\neBy end of {year_lower_bound - 1} it seems most existing sites were reservable"),
        x = "Year newly offering overnight reservations for each site type at recreation.gov",
        y = "Number of facilities in the USA",
-       fill = "Site type"
+       fill = "Site type",
+       caption = my_caption
   )
 ```
 
@@ -2052,7 +2120,8 @@ parks_all_years_overnight_for_plot %>%
                        " to {max(parks_all_years_overnight_for_plot$year_min)}"),
        x = "Year newly offering reservations for each kind of site offer overnight reservations at recreation.gov",
        y = "Number of facilities in the USA",
-       fill = "Site type"
+       fill = "Site type",
+       caption = my_caption
   )
 ```
 
@@ -2104,7 +2173,9 @@ parks_all_years_overnight_for_plot %>%
                        " {max(parks_all_years_overnight_for_plot$start_year)}",
                        "\nAs represented in published recreation.gov data set"),
        x = "Reservation start year",
-       color = "Site type (CAGR)")
+       color = "Site type (CAGR)",
+       caption = my_caption
+       )
 ```
 
 <br>

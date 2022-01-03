@@ -40,3 +40,5 @@ year_lower_bound <- 2009 # first year with "steady-state" data
 
 # let's make some stuff go faster 
 doParallel::registerDoParallel(cores = parallel::detectCores() - 1) 
+
+my_caption <- "Data: recreation.gov, plot: t @danielmoul gh @dmoul"
