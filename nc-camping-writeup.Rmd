@@ -101,7 +101,7 @@ park_years_nc <- tar_read(park_years_nc)
 park_years_usa <- tar_read(park_years_usa) %>%  
   filter(facility_name != "Washington Monument",
          !is.na(start_year)) %>%
-  # Fix an error
+  # Fix a data error
   mutate(
     facility_latitude = if_else(facility_name == "Cape Point Campground", 35.235278, facility_latitude),
     facility_longitude = if_else(facility_name == "Cape Point Campground", -75.535278, facility_longitude)
@@ -268,7 +268,6 @@ Parks are nearly all in the mountains in the West or at coast in the East.
 
 ```{r}
 nc_parks_for_map <- park_years_nc %>%
-  filter(year_min >= year_lower_bound) %>%
   filter(!str_detect(facility_name, "Crabtree Falls")) %>%
   mutate(facility_name = str_remove(facility_name, " Camp(.*$)?"),
          facility_name = str_remove(facility_name, " Horse(.*$)?"),
@@ -287,14 +286,12 @@ nc_parks_for_map <- park_years_nc %>%
   st_as_sf(coords = c("facility_longitude", "facility_latitude")) %>%
   st_set_crs("NAD83")
 
-nc_counties <- tigris::counties(state = "37",  # NC
+nc_counties <- tigris::counties(state = "37", # NC
                                 cb = TRUE) # download generalized 500K file
 
 ```
 
 ```{r nc-map, out.width="100%", fig.width=8}
-#fig.height=6
-
 ggplot() + 
   geom_sf(data = nc_counties, color = "grey50", size = 0.1, fill = "tan", alpha = 0.2) + 
   geom_sf(data = nc_parks_for_map,
@@ -314,6 +311,7 @@ ggplot() +
                hjust = 1, nudge_x = -0.075,
                size = 2,
                show.legend = FALSE) +
+  guides(color = guide_legend(override.aes = list(size = 3))) +
   theme_map() +
   theme(plot.title = element_text(hjust = 0.5),
         plot.subtitle = element_text(hjust = 0.5),
@@ -649,7 +647,7 @@ cagr_for_table %>%
 The changes year-to-year are more variable than the above table implies:
 
 ```{r normalizing-growth, fig.width=9, fig.height=6, out.width="100%"}
-xx <- nc_camping_person_nights_and_revenue_site_type_camps_all_years %>%
+nc_yty <- nc_camping_person_nights_and_revenue_site_type_camps_all_years %>%
   group_by(year, site_type) %>%
   summarize(person_nights_yearly_sum = sum(person_nights)) %>%
   ungroup() %>%
@@ -661,7 +659,7 @@ xx <- nc_camping_person_nights_and_revenue_site_type_camps_all_years %>%
   ungroup() %>%
   mutate(year = year + 2008)
 
-xx_yearly_sum <- nc_camping_person_nights_and_revenue_site_type_camps_all_years %>%
+nc_yty_yearly_sum <- nc_camping_person_nights_and_revenue_site_type_camps_all_years %>%
   mutate(pn_year_start = sum(person_nights[year == 1])) %>%
   group_by(year) %>%
   summarize(person_nights_yearly_sum = sum(person_nights),
@@ -673,18 +671,21 @@ xx_yearly_sum <- nc_camping_person_nights_and_revenue_site_type_camps_all_years 
 ```
 
 ```{r}
-xx %>%
+nc_yty %>%
   ggplot() +
-  geom_line(aes(year, person_nights_normalized, color = site_type), size = 0.5, alpha = 0.4) +
-  geom_point(aes(year, person_nights_normalized, color = site_type, size = ), size = 2, alpha = 0.9) +
-  geom_smooth(data = xx_yearly_sum,
+  geom_line(aes(year, person_nights_normalized, color = site_type), 
+            size = 0.5, alpha = 0.4, show.legend = FALSE) +
+  geom_point(aes(year, person_nights_normalized, color = site_type), 
+             size = 2, alpha = 0.9) +
+  geom_smooth(data = nc_yty_yearly_sum,
               aes(year, person_nights_normalized)
               ) +
   scale_x_continuous(breaks = c(2010, 2015, 2020)) +
   scale_color_viridis_d(end = 0.8) +
-  expand_limits(y = 0.8 * min(xx$person_nights_normalized)) +
+  expand_limits(y = 0.8 * min(nc_yty$person_nights_normalized)) +
+  guides(color = guide_legend(reverse = TRUE, override.aes = list(size = 3))) +
   labs(title = "Person nights by site_type",
-       subtitle = glue("{min(xx$year)}-{max(xx$year)}; {min(xx$year)} = 100"),
+       subtitle = glue("{min(nc_yty$year)}-{max(nc_yty$year)}; {min(nc_yty$year)} = 100"),
        x = NULL,
        caption = my_caption
   )
@@ -1121,7 +1122,7 @@ p1 <- p1_data %>%
   theme(panel.grid.major.x = element_blank()) +
   theme(legend.position = "none",
         plot.tag.position = "topright") +
-  guides(color = guide_legend(reverse = TRUE)) +
+  guides(color = guide_legend(reverse = TRUE, override.aes = list(size = 3))) +
   labs(title = "NC camping each night of the week (person-nights)",
        subtitle = "All facility+site_type combos",
        x = "",
@@ -1143,7 +1144,7 @@ p2 <- p2_data %>%
   theme(panel.grid.major.x = element_blank()) +
   theme(legend.position = "bottom",
         plot.tag.position = "topright") +
-  guides(color = guide_legend(reverse = TRUE)) +
+  guides(color = guide_legend(reverse = TRUE, override.aes = list(size = 3))) +
   labs(title = "",
        subtitle = "Excludes facility + site_type combos not reservable in initial year",
        x = "",
@@ -1247,13 +1248,15 @@ top_occupancy_by_year <- nc_yday_occupancy %>%
 
 top_occupancy_by_year %>%
   ggplot(aes(year, avg_occupancy, color = site_type)) +
-  geom_line(alpha = 0.5, size = 0.2) +
-  geom_point(aes(size = n_campsites_max), alpha = 0.6) +
+  geom_line(alpha = 0.5, size = 0.2, show.legend = FALSE) +
+  geom_point(aes(size = n_campsites_max), 
+             alpha = 0.6) +
   geom_text_repel(aes(label = facility_label),
             hjust = 0,
             nudge_x = 0.1,
             show.legend = FALSE) +
   scale_y_continuous(labels = percent_format(accuracy = 1)) +
+  guides(color = guide_legend(override.aes = list(size = 3))) +
   theme(legend.position = "bottom",
         panel.grid.major.x = element_blank()) +
   labs(title = "NC camping highest avg occupancy by year and site type",
@@ -1285,13 +1288,14 @@ top_occupancy_by_year_season <- nc_yday_occupancy %>%
 
 top_occupancy_by_year_season %>%
   ggplot(aes(year, avg_occupancy, color = site_type)) +
-  geom_line(alpha = 0.5, size = 0.2) +
+  geom_line(alpha = 0.5, size = 0.2, show.legend = FALSE) +
   geom_point(aes(size = n_campsites_max), alpha = 0.6) + #, size = 2
   geom_text_repel(aes(label = facility_label),
             hjust = 0,
             nudge_x = 0.1,
             show.legend = FALSE) +
   scale_y_continuous(labels = percent_format(accuracy = 1)) +
+  guides(color = guide_legend(override.aes = list(size = 3))) +
   facet_wrap(~season, ncol = 1) +
   theme(legend.position = "bottom",
         panel.grid.major.x = element_blank()) +
@@ -1324,7 +1328,7 @@ top_occupancy_by_year_season_weekend <- nc_yday_occupancy %>%
 
 top_occupancy_by_year_season_weekend %>%
   ggplot(aes(year, avg_occupancy, color = site_type)) +
-  geom_line(alpha = 0.5, size = 0.2) +
+  geom_line(alpha = 0.5, size = 0.2, show.legend = FALSE) +
   geom_point(aes(size = n_campsites_max), alpha = 0.6) +
   geom_text_repel(aes(label = facility_label),
             hjust = 0,
@@ -1332,6 +1336,7 @@ top_occupancy_by_year_season_weekend %>%
             show.legend = FALSE) +
   scale_y_continuous(labels = percent_format(accuracy = 1)) +
   facet_wrap(~season, ncol = 1) +
+  guides(color = guide_legend(override.aes = list(size = 3))) +
   theme(legend.position = "bottom",
         panel.grid.major.x = element_blank()) +
   labs(title = "NC camping highest avg occupancy by year and site type",
@@ -1466,6 +1471,7 @@ p2 <- max_occupancy_by_year_season %>%
   scale_y_continuous(breaks = c(0.0, 0.25, 0.5, 0.75, 1.0),
                      labels = label_percent()) +
   scale_color_viridis_d(end = 0.8) +
+  guides(color = guide_legend(override.aes = list(size = 3))) +
   theme(legend.position = "bottom",
         panel.grid.major.x = element_blank()) +
   labs(title = "",
@@ -1516,6 +1522,7 @@ p2 <- max_occupancy_by_year_season_90pc %>%
   scale_y_continuous(breaks = c(0.0, 0.25, 0.5, 0.75, 1.0),
                      labels = label_percent()) +
   scale_color_viridis_d(end = 0.8) +
+  guides(color = guide_legend(override.aes = list(size = 3))) +
   theme(legend.position = "bottom",
         panel.grid.major.x = element_blank()) +
   labs(title = "",
@@ -1557,6 +1564,7 @@ nc_history %>%
   scale_y_continuous(labels = percent_format()) +
   scale_color_viridis_d(end = 0.92) +
   geom_vline(xintercept = c(0, 30, 60, 90, 180, 365), color = "firebrick", alpha = 0.5, lty = 2) +
+  guides(color = guide_legend(override.aes = list(size = 3))) +
   facet_wrap(~year, ncol = 4) +
   theme(legend.position = "bottom") +
   labs(title = "Reservation-to-start date patterns were remarkably consistent 2012-2012",
@@ -1589,6 +1597,7 @@ nc_history %>%
   scale_y_continuous(labels = percent_format()) +
   scale_color_viridis_d(end = 0.92) +
   geom_vline(xintercept = c(0, 30, 60, 90, 180, 365), color = "firebrick", alpha = 0.5, lty = 2) +
+  guides(color = guide_legend(override.aes = list(size = 3))) +
   facet_wrap(~ site_type, ncol = 3) +
   theme(legend.position = "bottom") +
   labs(title = "Reservations have been occuring earlier over the years\nsince 2012 for all site types",
@@ -1607,37 +1616,6 @@ The most popular group campgrounds seem to be Cove Creek Upper and Lower Group C
 
 Cabins and Group Camps are the most likely to show a linear-like increase in reservations over time (after the early birds reserve as soon as reservations open).
 
-```{r fig.height=16, fig.width=12, out.width="100%", eval=FALSE}
-nc_history %>%
-  filter(year >= year_lower_bound,
-         !site_type %in% c("management", "shelter")) %>%
-  group_by(year, facility_name) %>%
-  mutate(days_order_to_start = start_date - order_date,
-         invalid_start_date = if_else(order_date > start_date + 1, 1, NULL),
-         
-         site_type = fct_reorder(site_type, person_nights, sum),
-         year = factor(year)
-         ) %>%
-  ungroup() %>%
-  select(year, facility_name, site_type, days_order_to_start) %>%
-  ggplot(aes(days_order_to_start, color = year)) +
-  stat_ecdf() +
-  coord_cartesian(xlim = c(360, -30)) +
-  scale_x_reverse(breaks = c(0, 30, 60, 90, 180, 365)) +
-  scale_y_continuous(labels = percent_format()) +
-  scale_color_viridis_d(end = 0.92) +
-  geom_vline(xintercept = c(0, 30, 60, 90, 180, 365), color = "firebrick", alpha = 0.5, lty = 2) +
-  facet_wrap(~ facility_name, ncol = 45) +
-  theme(legend.position = "bottom") +
-  labs(title = "Reservations patterns differ by campgound",
-       subtitle = "Percent of NC bookings by x days before start_date",
-       x = "Days before reservation starts",
-       y = "",
-       color = "Site type",
-       caption = my_caption)
-```
-
-<br>
 
 ```{r fig.height=46, fig.width=18, out.width="100%"}
 nc_history_for_plot <- nc_history  %>%
@@ -1664,6 +1642,7 @@ plot_order_to_start_by_site_type <- function(tbl) {
     scale_y_continuous(labels = percent_format()) +
     scale_color_viridis_d(end = 0.92) +
     geom_vline(xintercept = c(0, 30, 60, 90, 180, 365), color = "firebrick", alpha = 0.5, lty = 2) +
+    guides(color = guide_legend(override.aes = list(size = 3))) +
     facet_wrap(~ facility_name, ncol = 6) +
     theme(legend.position = "bottom") +
     labs(title = glue("Reservations patterns for >>{site_types_in_plot}<< sites differ by campgound"),
@@ -1758,13 +1737,13 @@ nc_camping_cost %>%
   filter(site_type != "shelter") %>%
   mutate(site_type = fct_reorder(site_type, cost_median, last)) %>%
  ggplot(aes(year, cost_median, color = site_type, size = n_person_nights)) +
-  geom_line(alpha = 0.7) +
+  geom_line(alpha = 0.7, show.legend = FALSE) +
   geom_point(size = rel(6)) + #
   scale_x_continuous(breaks = seq(2005, 2020, by = 5)) +
   scale_y_continuous(labels = dollar_format()) +
   scale_color_viridis_d(end = 0.92) +
   scale_size_continuous(labels = label_number_si()) +
-  guides(color = guide_legend(reverse = TRUE)) +
+  guides(color = guide_legend(reverse = TRUE, override.aes = list(size = 3))) +
   expand_limits(y = 0) +
   theme(panel.grid.major.x = element_blank()) +
   labs(title = "Camping in NC continues to be a great value",
@@ -1856,7 +1835,7 @@ orgs_for_table <- nc_history %>%
             n_years = n_distinct(year),
             avg_yearly_person_nights = person_nights / n_years) %>%
   ungroup() %>%
-  group_by(facility_id_group, facility_name,) %>% #
+  group_by(facility_id_group, facility_name,) %>%
   summarize(n_sites = sum(n_sites),
             person_nights = sum(person_nights),
             n_years = unique(n_years),
@@ -2041,9 +2020,6 @@ max_occupancy_by_year_season  %>%
   tab_footnote(md("*Simple addition of n_days for each site type, not checking whether any of the max occupancy dates overlapped*"),
                locations = cells_column_labels(columns = n_days_all_site_types))
 
-# TODO: add number of sites, since it's easier to parks with few sites to have higher occupancy?
-# TODO move to facility_name_combined?
-
 ```
 
 <br><br>
@@ -2054,9 +2030,6 @@ max_occupancy_by_year_season_90pc %>%
   tab_header(md(glue("**Number of days facilities were at least 90% occupied**<br>{year_start}-{year_stop} by site type"))) %>%
   tab_footnote(md("*Simple addition of n_days for each site type, not checking whether any of the max occupancy dates overlapped*"),
                locations = cells_column_labels(columns = n_days_all_site_types))
-
-# TODO: add number of sites, since it's easier to parks with few sites to have higher occupancy?
-# TODO: move to facility_name_combined?
 
 ```
 
@@ -2140,17 +2113,13 @@ parks_all_years_overnight_for_plot <- park_years_usa %>%
   summarize(n_parks = n()) %>%
   ungroup() %>%
   group_by(site_type) %>%
-  mutate(#agr_by_site_type = sum(n_parks[start_year == 2020]) / sum(n_parks[start_year == 2008]) / (2020 - 2008),
-         cagr_by_site_type = CAGR_formula(sum(n_parks[start_year == 2020]), 
+  mutate(cagr_by_site_type = CAGR_formula(sum(n_parks[start_year == 2020]), 
                                           sum(n_parks[start_year == year_lower_bound]), 
                                           2020 - year_lower_bound)
          ) %>%
   ungroup() %>%
   mutate(site_type_simple_label = glue("{site_type} ({percent(cagr_by_site_type, accuracy = 0.1)})"),
     site_type_simple_label = fct_reorder(site_type_simple_label, -n_parks)) 
-
-# agr <- with(parks_all_years_overnight_for_plot,
-#             round(sum(n_parks[start_year == 2020]) / sum(n_parks[start_year == year_lower_bound])) / (2020 - year_lower_bound + 1), 0)
 
 cagr <- with(parks_all_years_overnight_for_plot,
              CAGR_formula(sum(n_parks[start_year == 2020]), sum(n_parks[start_year == year_lower_bound]), yrs = 2020 - year_lower_bound + 1)
@@ -2162,10 +2131,11 @@ It seems like normal growth in in 2009 and following years as facilities added a
 ```{r fig.width=8}
 parks_all_years_overnight_for_plot %>%
   ggplot(aes(start_year, n_parks, color = site_type_simple_label)) +
-  geom_line() +
+  geom_line(size = 0.5, show.legend = FALSE) +
   geom_point(size = 2) +
   scale_x_continuous(breaks = c(2005, 2010, 2015, 2020)) +
   scale_color_viridis_d(end = 0.92, direction = -1) +
+  guides(color = guide_legend(override.aes = list(size = 3))) +
   theme(panel.grid.major.x = element_blank()) +
   labs(title = "Number of facilities offering site_type \nwith 'Overnight' use_type by year",
        subtitle = glue("Compound annual growth rate (CAGR) for all offering site types: {percent(cagr, accuracy = 0.1)}",
