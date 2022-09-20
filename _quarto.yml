@@ -1,0 +1,43 @@
+project:
+  type: book
+  output-dir: "nc-camping"
+
+execute:
+  freeze: auto  # re-render only when source changes
+  
+book:
+  title: "Camping in NC at Federal Facilities"
+  author: "[Daniel Moul](https://dmoul.github.io)"
+  date: "2022-01-03"
+  cover-image: "./images/nps-camping-near-ocean-4FEBA1FD-1DD8-B71B-0B1FB4542FEEF7B0.jpg"
+  #site-url: https://dmoul.github.io/
+  page-footer: 
+    center: "Copyright 2022 by [Daniel Moul](https://dmoul.github.io). License: [CC-BY 4.0](http://creativecommons.org/licenses/by/4.0/)"
+    background: dark
+  # navbar:
+  #   search: true
+  
+  chapters: 
+    - index.qmd
+    - nc-camps.qmd
+    - nc-camps-person-nights.qmd
+    - nc-camps-occupancy.qmd
+    - nc-camps-reservations.qmd
+    - nc-camps-cost-per-night.qmd
+    - nc-camps-appendix.qmd
+
+#bibliography: references.bib
+license: "CC BY"
+appendix-style: default
+
+format:
+  html:
+    # theme: yeti
+    # theme: cosmo
+    theme:
+      light: flatly
+      dark: darkly
+    # cover-image: "./images/baleen-large-5733725597_0f034cf53d_k_d.jpg"
+    toc: true
+    number-sections: true
+    number-depth: 3

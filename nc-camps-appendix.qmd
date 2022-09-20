@@ -1,0 +1,783 @@
+# Appendix
+
+```{r}
+#| label: setup
+#| include: FALSE
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+library(here)
+source(here("scripts", "my-setup.R"))
+
+```
+
+```{r}
+#| label: read-target-objects
+
+# facilities <- tar_read(facilities_all)
+# federal_org_info <- tar_read(federal_orgs)
+
+nc_history <- tar_read(nc_camping_history)
+
+year_min <- year_lower_bound
+year_max <- max(nc_history$year)
+
+# # one row for each overnight stay (includes day of week (dow))
+# nc_history_detail <- tar_read(nc_camping_history_detail) %>%
+#   mutate(year = year(start_date))
+
+nc_parks_site_types <- nc_history %>%
+  mutate(
+      name_first_word = str_extract(facility_name, "\\w+")
+  ) %>% 
+  # slice_sample(n = 1e5) %>% # for testing
+  # This works because each first word is unique--it probably wouldn't work if looking at whole USA
+  group_by(name_first_word) %>%
+  mutate(facility_id_group = cur_group_id()
+  ) %>%
+  ungroup() %>%
+  group_by(facility_id_group, site_type) %>%
+  mutate(n_sites = n_distinct(product_id)) %>%
+  ungroup() %>%
+  distinct(facility_id_group, facility_id, site_type, .keep_all = TRUE) %>% 
+  select(name_first_word, facility_id, facility_name, facility_type_description, site_type, facility_id_group, n_sites) %>%
+  group_by(facility_id_group) %>%
+  mutate(facility_name = as.list(facility_name),
+         facility_name = glue_collapse(unique(facility_name), sep = " + "),
+         facility_id_list = as.list(facility_id),
+         facility_id_list = glue_collapse(unique(facility_id_list), sep = ", ")
+  ) %>%
+  ungroup() %>%
+  arrange(facility_name, site_type)
+# one row for each facility_name (combined) and site_type
+# for cases where only the facility_name ang or facility_group_id matters, use distinct()
+
+
+nc_parks_site_types_product_id <- nc_history %>%
+  mutate(
+      name_first_word = str_extract(facility_name, "\\w+")
+  ) %>% 
+  # slice_sample(n = 1e5) %>% # for testing
+  group_by(name_first_word) %>%
+  mutate(facility_id_group = cur_group_id()
+  ) %>%
+  ungroup() %>%
+  group_by(facility_id_group, site_type) %>%
+  mutate(product_id_list = list(unique(product_id)),
+         n_sites = length(product_id_list)) %>%
+  ungroup() %>%
+  distinct(facility_id_group, facility_id, site_type, .keep_all = TRUE) %>% 
+  select(name_first_word, facility_id, facility_name, facility_type_description, site_type, facility_id_group, n_sites) %>%
+  group_by(facility_id_group) %>%
+  mutate(facility_name = as.list(facility_name),
+         facility_name = glue_collapse(unique(facility_name), sep = " + "),
+         facility_id_list = as.list(facility_id),
+         facility_id_list = glue_collapse(unique(facility_id_list), sep = ", ")
+  ) %>%
+  ungroup() %>%
+  arrange(facility_name, site_type)
+# one row for each facility_name (combined) and site_type
+# for cases where only the facility_name or facility_group_id matters, use distinct()
+
+# nc_campsites <- tar_read(nc_campsites_from_history) %>%
+#   rename(facility_name_original = facility_name) %>%
+#   left_join(.,
+#             nc_parks_site_types %>%
+#               select(facility_id_group, facility_name, facility_id = facility_id_list) %>%
+#               separate_rows(facility_id),
+#             by = "facility_id"
+#             ) %>%
+#   distinct(facility_id_group, facility_name, campsite_id)
+  
+park_years_nc <- tar_read(park_years_nc)
+
+# feather file seems to be flakey, so using targets() cached value instead
+# park_years <- readRDS("./data/processed/park-years.rds") %>% # could use .rds if we wanted to
+park_years_usa <- tar_read(park_years_usa) %>%  
+  filter(facility_name != "Washington Monument",
+         !is.na(start_year)) %>%
+  # Fix a data error
+  mutate(
+    facility_latitude = if_else(facility_name == "Cape Point Campground", 35.235278, facility_latitude),
+    facility_longitude = if_else(facility_name == "Cape Point Campground", -75.535278, facility_longitude)
+)
+
+nc_yday <- tar_read(nc_camping_history_yday) %>%
+  count(year, facility_name, site_type, season, day_of_reservation, yday_of_reservation,
+        name = "n_campsites") %>% # number of campsites used that night (not person_nights)
+  arrange(facility_name, year, yday_of_reservation)
+
+# nc_week <- tar_read(nc_camping_history_yday) %>%
+#   unnest(week_of_reservation, week_of_reservation2, yday_of_reservation) %>%
+#   count(year, facility_name, site_type, season, week_of_reservation, #n_campgrounds, 
+#         name = "n_campsites") %>%
+#   arrange(facility_name, year, week_of_reservation, site_type)
+
+# nc_week_n_camps_occupied <- tar_read(nc_camping_history_yday) %>%
+#   filter(year >= year_lower_bound,
+#          site_type != "management") %>%
+#   distinct(year, week_of_reservation, facility_name, site_type) %>%
+#   mutate(week_of_reservation = map(week_of_reservation, unique)) %>%
+#   unnest(week_of_reservation) %>%
+#   distinct(year, week_of_reservation, facility_name, site_type) %>%
+#   group_by(year, week_of_reservation, site_type) %>%
+#   summarize(n_campgrounds = n_distinct(facility_name)) %>%
+#   ungroup()
+
+# nc_week2 <- nc_history_detail %>%
+#   mutate(week_of_reservation = epiweek(overnight_date)) %>%
+#   group_by(facility_name, site_type, loc_mountains, year, week_of_reservation) %>%
+#   summarize(n_campsites = n_distinct(product_id)) %>%
+#   ungroup()
+
+# nc_week_n_camps_occupied2 <- nc_week2
+
+```
+
+```{r}
+
+# these were first defined in nc-camps-person-nights.qmd
+
+campgrounds_all_years <- nc_history %>%
+  filter(year == year_lower_bound,
+         site_type != "management") %>%
+  distinct(facility_id, site_type, .keep_all = TRUE) %>%
+  select(facility_id, facility_name, site_type, year) %>%
+  mutate(all_years = TRUE)
+
+campgrounds_not_all_years <- 
+  nc_history %>%
+  filter(year >= year_lower_bound,
+         site_type != "management") %>%
+  distinct(facility_id, site_type, year, .keep_all = TRUE) %>%
+  select(facility_id, facility_name, site_type, year) %>%
+  anti_join(campgrounds_all_years,
+            by = c("facility_id", "facility_name", "site_type")
+            ) %>%
+  group_by(facility_id, facility_name, site_type) %>%
+  mutate(year_min = min(year)) %>%
+  ungroup() %>%
+  filter(year == year_min) %>%
+  mutate(all_years = FALSE) %>%
+  select(-year_min)
+
+nc_campgrounds_year_min <- 
+  bind_rows(
+    campgrounds_all_years,
+    campgrounds_not_all_years
+  ) %>%
+  arrange(facility_name, site_type) %>%
+  mutate(first_word  = str_extract(facility_name, "\\w+")) %>%
+  group_by(first_word) %>%
+  mutate(n_site_types = n(),
+         ignore = sum(all_years) == 0) %>%
+  ungroup()
+
+nc_history_camps_all_years <- 
+  inner_join(
+    campgrounds_all_years %>% select(-year),
+    nc_history,
+    by = c("facility_id", "facility_name", "site_type")
+) %>%
+  select(-all_years)
+
+```
+
+```{r}
+#| label: year-day-occupancy
+
+# this was first defined in nc-camps-occupancy.qmd
+
+year_start <- 2013
+year_stop <- 2020
+
+# TODO move to facility_name_combined
+nc_yday_max <- nc_yday %>%
+  group_by(facility_name, site_type) %>%
+  slice_max(n = 1, order_by = n_campsites, with_ties = FALSE) %>%
+  ungroup()
+
+nc_yday_occupancy <- left_join(nc_yday,
+                               nc_yday_max %>% 
+                                 select(facility_name, site_type, n_campsites_max = n_campsites),
+                               by = c("facility_name", "site_type")) %>%
+  mutate(occupancy = n_campsites / n_campsites_max) %>%
+  arrange(facility_name, year, yday_of_reservation)
+
+```
+
+```{r}
+
+# this was first defined in nc-camps-occupancy.qmd
+
+max_occupancy_by_year_season <- nc_yday_occupancy %>%
+  filter(between(year, year_start, year_stop)) %>%
+  filter(site_type != "management",
+         occupancy == 1 # max occupancy
+         ) %>%
+  count(facility_name, site_type, season, name = "n_days") %>%
+  group_by(facility_name) %>%
+  mutate(n_days_all_site_types = sum(n_days)) %>%
+  ungroup() %>%
+  arrange(-n_days_all_site_types, -n_days) %>%
+  # since every park and site type will be at max occupancy at least once (by definition!), we'll ignore those
+  filter(n_days > 1)
+
+max_occupancy_by_year_season_90pc <- nc_yday_occupancy %>%
+  filter(between(year, year_start, year_stop)) %>%
+  filter(site_type != "management",
+         occupancy >= 0.9 # 90% occupancy
+         ) %>%
+  count(facility_name, site_type, season, name = "n_days") %>%
+  group_by(facility_name) %>%
+  mutate(n_days_all_site_types = sum(n_days)) %>%
+  ungroup() %>%
+  arrange(-n_days_all_site_types, -n_days) %>%
+  # since every park and site type will be at max occupancy at least once (by definition!), we'll ignore those
+  filter(n_days > 1)
+
+```
+
+## What's possible given this data set? {#sec-dataset-limitations}
+
+I found five important limitations in the data:
+
+1. [recreation.gov](https://recreation.gov/) mostly processes reservations for federal facilities. It does not process reservations for state-owned public campgrounds in North Carolina. NC State Parks use [ReserveAmerica.com](https://ReserveAmerica.com/) instead, thus the campgrounds closest to my home in the [Jordan Lake State Recreation Area](https://www.ncparks.gov/jordan-lake-state-recreation-area/home) and my favorite at [Mount Mitchell](https://www.ncparks.gov/mount-mitchell-state-park/home) are not included in this data set. As noted at [www.ncparks.gov/find-a-park](https://www.ncparks.gov/find-a-park):
+
+    >There are 41 places that are currently part of the North Carolina State Parks system: 34 parks, four recreation areas, and three staffed state natural areas.
+
+2. Some campsites are not reservable, and some may not be reservable in the off season. So by definition, use of these sites will not show up in this data set.
+
+3. Some campsites have become reservable during the years covered in this data set. For example, the NPS campgrounds at Cape Hatteras: Oregon Inlet and Frisco started taking reservations in 2015, and Cape Point started in 2016. When looking at multi-year growth, including these campgrounds unduly inflates growth rates.
+
+4. As is visible in the per-campground trend data in *@sec-camping-person-nights-by-park Camping person-nights by park*, there are a lot of outliers in the data in 2018, 2019, and 2020. Thus I have varied the end year as I saw fit to communicate trends most clearly. Likely there are two causes to these anomalies: 
+
+    - Data for 2018 and first half of 2019 are less reliable than other years as explained in the 2018 history readme:
+
+        >Due to the transition between Rec.gov vendors the FY 2018 historical reservation data has not been fully verified for accuracy and completeness.
+
+    - In 2020 due the the COVID-19 pandemic, people changed their behavior significantly, and camping facilities were closed for some periods of the year. For example, I assume that group campsites were used less frequently, and group size was smaller than earlier years.
+
+5. As noted at [trailandsummit.com](https://trailandsummit.com/every-type-of-campsite-defined-camping-faqs/) the definition of "standard", "tent" and "RV" overlap, which means counts and trends below that distinguish among these categories would not reflect the experience of campers, for example, in the availability of a campsite *for them*:
+
+    >In most campgrounds, the term “standard campsite” is interchangeable with a “basic campsite.” Like basic sites, standard campsites usually have a driveway, a picnic table, and a fire ring or grill, and are normally reserved for groups of 6 people or less. Depending on the type of campground, standard sites may be suitable for tents or RVs, though they’re mostly used by tent campers. This is because most standard sites have driveways that are only suitable for smaller campers and campervans. That being said, in RV-only campgrounds, standard campsites may refer to a site where you get everything listed above, plus a simple electric hookup, but no water or sewer.
+
+Given there are no RV-only campgrounds among these federally-owned facilities in NC, I am recognizing all "standard" sites as "tent" sites.
+
+<br>
+
+## North Carolina
+
+### NC facility summary {#sec-nc-facility-summary}
+
+There are `r nrow(distinct(nc_parks_site_types, facility_id_group))` federal facilities in North Carolina offering reservations through recreation.gov, which I consolidated from `r nrow(distinct(nc_history, facility_id)) ` separate `facility_id` values (some parks record cabins or group campgrounds as separate facilities).
+
+<br>
+
+```{r}
+#| label: fig-nc-parks-site-types-for-table-appendix
+#| fig-cap: "Table of site types offered by federal camping facilities in NC"
+#| column: page-right
+
+nc_parks_site_types_for_table <- nc_history %>%
+  filter(year >= year_lower_bound) %>%
+  mutate(name_first_word = str_extract(facility_name, "\\w+")) %>%
+  rename(facilility_name_original = facility_name) %>%
+  inner_join(.,
+             nc_parks_site_types %>% 
+               mutate(name_first_word = str_extract(facility_name, "\\w+")) %>%
+               group_by(name_first_word, facility_id_group, facility_id_list, facility_name, site_type) %>%
+               summarize(n_sites = sum(n_sites)) %>%
+               ungroup(),
+             by = c("name_first_word", "site_type")) %>%
+  group_by(facility_id_group, facility_name, facility_id_list, site_type) %>%
+  summarize(n_sites = n_distinct(product_id)) %>%
+  ungroup() %>%
+  pivot_wider(names_from = site_type, values_from = n_sites) %>%
+  mutate(across(c(tent, cabin, group, equestrian, rv, management), ~replace_na(.x, 0))) %>%
+  group_by(facility_id_group, facility_name, facility_id_list) %>%
+  summarize(across(c(tent, cabin, group, equestrian, rv, management), ~ifelse(any(.x > 0), .x, NA_real_))) %>%
+  ungroup() %>%
+  mutate(across(where(is.numeric), ~na_if(.x, 0))) %>%
+  adorn_totals(where = "col", name = "n_sites") %>%
+  adorn_totals(where = "row", name = "Total inventory")
+
+nc_parks_site_types_for_table %>%
+  gt() %>%
+  tab_header(md(glue("**Site types offered by federal camping facilities in NC**",
+                     ""))) %>%
+  tab_spanner(
+    label = "Site type",
+    columns = tent:management
+  ) %>%
+  cols_align(columns = tent:management,
+             align = "center") %>%
+  fmt_number(columns = tent:n_sites,
+             decimals = 0) %>%
+  sub_missing(columns = everything(), 
+              missing_text = "")
+  
+```
+
+<br><br>
+
+### Campgrounds average yearly person_nights
+
+The following table is ordered by average yearly person_nights, which provides one measure of popularity. `n_years` is the number of years recreation.gov has managed reservations for the campground.
+
+<br>
+
+```{r}
+#| label: fig-facilities-and-person-nights
+#| fig-cap: "Table of facilities and person-nights"
+#| column: page-right
+
+orgs_for_table <- nc_history %>%
+  filter(year >= year_lower_bound) %>%
+  mutate(name_first_word = str_extract(facility_name, "\\w+")) %>%
+  rename(facilility_name_original = facility_name) %>%
+  inner_join(.,
+             nc_parks_site_types %>% 
+               mutate(name_first_word = str_extract(facility_name, "\\w+")) %>%
+               group_by(name_first_word, facility_id_group, facility_name, site_type) %>%
+               summarize(n_sites = sum(n_sites)) %>%
+               ungroup(),
+             by = c("name_first_word", "site_type")) %>% 
+  group_by(facility_id_group, facility_name, site_type) %>% 
+  summarize(n_sites = unique(n_sites),
+            person_nights = sum(person_nights),
+            n_years = n_distinct(year),
+            avg_yearly_person_nights = person_nights / n_years) %>%
+  ungroup() %>%
+  group_by(facility_id_group, facility_name,) %>%
+  summarize(n_sites = sum(n_sites),
+            person_nights = sum(person_nights),
+            n_years = unique(n_years),
+            avg_yearly_person_nights = person_nights / n_years) %>%
+  ungroup() %>%
+  arrange(-n_years) %>%
+  distinct(facility_id_group, .keep_all = TRUE) %>%
+  arrange(facility_id_group) %>%
+  relocate(n_years, .after = avg_yearly_person_nights)
+                
+orgs_for_table %>%
+  arrange(-avg_yearly_person_nights) %>%
+  adorn_totals(., where = "row", fill = NA, na.rm = TRUE, name = "Total", starts_with(c("n_sites", "person_nights"))) %>%
+  gt() %>%
+  tab_header(md(glue("**Facilities in NC offering overnight camping reservations", 
+                     "<br>And person-nights of camping 2009-2020**",
+                     "<br>via recreation.gov"))) %>%
+  cols_align(columns = "facility_name", align = "left") %>%
+  fmt_number(columns = n_sites:avg_yearly_person_nights,
+             decimals = 0) %>%
+  sub_missing(columns = everything()) %>%
+  tab_footnote(md(glue("*Sum of all person-nights of reserved camping", 
+                       " with start date in {year_lower_bound} through {year_max} via recreation.gov*")),
+               locations = cells_column_labels(columns = person_nights)) %>%
+  tab_footnote(md(glue("*Since the number of person-nights has been increasing year-over-year,", 
+                       " for campgrounds that have become more popular,",
+                       " the average under-respresents recent activity at campgrounds with the most years of data*")),
+               locations = cells_column_labels(columns = avg_yearly_person_nights))
+
+```
+
+<br><br>
+
+### Reservable sites added during the years of interest {#sec-reservable-sites-added}
+
+As noted in the table above and the individual facility plots in *@sec-camping-person-nights-by-park Camping person-nights by park* and subsequent plots, some campgrounds did not offer reservable sites during all years of interest. In most of these cases, non-reservable sites were converted to ones taking reservations during the years of interest.
+
+The following campgrounds did not offer any reservable sites of the site type noted in `r year_lower_bound` :
+
+```{r}
+#| label: fig-facilities-not-reservable
+#| fig-cap: "Table of facilities that did not offer reservable campsites"
+
+nc_campgrounds_year_min %>%
+  filter(ignore) %>% 
+  select(facility_id, facility_name, site_type, first_year = year) %>%
+  arrange(facility_name, site_type) %>%
+  gt()
+```
+
+<br><br>
+
+The following campgrounds had at least one other site_type reservable in `r year_lower_bound` and added the site_type in the year noted below:
+
+<br>
+
+```{r}
+#| label: fig-facilities-offering-at-least-one-reservable-site
+#| fig-cap: "Table of facilities offering at least one reservable site"
+
+nc_campgrounds_year_min %>%
+  filter(!all_years & n_site_types > 1,
+         !ignore) %>% 
+  select(facility_id, facility_name, site_type, first_year = year) %>%
+  gt()
+```
+
+<br><br>
+
+
+### There is some reuse of product_id values (unfortunately) {#sec-reuse-of-product-id}
+
+```{r}
+
+n_sites <- nc_history %>%
+  summarize(n = n_distinct(product_id)) %>%
+  pull(n)
+
+n_sites_by_facilility_id <- nc_history %>%
+  group_by(facility_id) %>%
+  summarize(n = n_distinct(product_id)) %>%
+  ungroup() %>%
+  pull(n) %>%
+  sum()
+
+n_sites_by_facilility_id_site_type_original <- nc_history %>%
+  group_by(facility_id, site_type_original) %>%
+  summarize(n = n_distinct(product_id)) %>%
+  ungroup() %>%
+  pull(n) %>%
+  sum()
+
+n_sites_by_facilility_id_site_type <- nc_history %>%
+  group_by(facility_id, site_type) %>%
+  summarize(n = n_distinct(product_id)) %>%
+  ungroup() %>%
+  pull(n) %>%
+  sum()
+
+product_id_counts <- tribble(
+  ~ counting_method, ~ n_sites, ~ comment,
+  # row 1
+  "summarize(n = n_distinct(product_id))", 
+  n_sites,
+  "Baseline: simple count of distinct product_id values in data set",
+  # row 2
+  "group_by(facility_id) %>% summarize(n = n_distinct(product_id)) %>% ungroup() %>% pull(n) %>% sum()", 
+  n_sites_by_facilility_id, 
+  "Additional cases in which multiple facilities use the sampe product_id values",
+  # row 3
+  "group_by(facility_id, site_type) %>% summarize(n = n_distinct(product_id)) %>% ungroup() %>% pull(n) %>% sum()",
+  n_sites_by_facilility_id_site_type, 
+  "Additional cases in which multiple facilities use the same product_id values across multiple site_type categories",
+  # row 4
+  "group_by(facility_id, site_type_original) %>% summarize(n = n_distinct(product_id)) %>% ngroup() %>% pull(n) %>% sum()", 
+  n_sites_by_facilility_id_site_type_original, 
+  "Additional cases in which multiple facilities use the same product_id values across more detailed, multiple, original site_type categories"
+) %>%
+  mutate(delta = n_sites - lag(n_sites)) %>%
+  relocate(delta, .after = n_sites)
+
+product_id_diff <- max(product_id_counts$n_sites) - min(product_id_counts$n_sites)
+product_id_diff_pct <- product_id_diff / max(product_id_counts$n_sites)
+
+```
+
+This complicates matters. Since the difference is at most `r product_id_diff` (`r percent(product_id_diff_pct)`), I generally work with counts calculated using "group_by(facility_id, site_type)" and ignore the differences otherwise. 
+
+<br>
+
+```{r}
+#| label: fig-product-id-not-unique
+#| fig-cap: "Table illustrating that product_id is not unique"
+#| column: page-right
+
+product_id_counts %>%
+  adorn_totals(where = "row", fill = NA, na.rm = TRUE, name = "Total", delta) %>%
+  gt() %>%
+  tab_header(md("**Counting sites in *nc_history***<br>*product_id* is not unique in all cases")) %>%
+  fmt_number(columns = 2:3,
+             decimals = 0) %>%
+  sub_missing(columns = everything())
+```
+
+<br><br>
+
+### NC Inventory added to recreation.gov
+
+It seems recreation.gov included existing reservable NC inventory by the end of 2008. So I start with `r year_lower_bound` in most cases. Note that some existing campsites were added later when they became reservable, for example the NPS campgrounds at Cape Hatteras: Oregon Inlet and Frisco started taking reservations in 2015, and Cape Point started in 2016 (at the end of 2021 Camp Point was taking same-day reservations only according to https://www.nps.gov/caha/planyourvisit/campgrounds.htm).
+
+```{r}
+parks_nc_all_years_overnight_for_plot <- park_years_nc %>%
+  group_by(facility_id, facility_name, site_type, year_min, year_max) %>%
+  summarize(n_years = n()) %>%
+  ungroup() %>%
+  filter(site_type != "management") %>%
+  mutate(site_type = fct_reorder(site_type, -n_years))
+
+```
+
+```{r}
+#| label: fig-facilities-newly-offering-campsites
+#| fig-cap: "Facilities newly offering campsites in the data set"
+#| column: page-right
+
+parks_nc_all_years_overnight_for_plot %>%
+  count(year_min, site_type) %>%
+  ggplot(aes(x = year_min, y = n, fill = site_type)) +
+  geom_col(alpha = 0.9) +
+  scale_y_continuous(label = comma_format()) +
+  scale_fill_viridis_d(end = 0.92, direction = -1) +
+  theme(panel.grid.major.x = element_blank()) +
+  labs(title = "Number of NC facilities newly offering \nsite_type_simple with 'Overnight' use_type by year",
+       subtitle = glue("As represented in published recreation.gov data set",
+                       " {min(parks_nc_all_years_overnight_for_plot$year_min)}", 
+                       " to {max(parks_nc_all_years_overnight_for_plot$year_min)}",
+                       "\nBy 2008 it seems existing reservable sites are in the data set",
+                       "\nLater years are likely organic growthn or conversion of sites from non-reservable to reservable"),
+       x = "Year newly offering overnight reservations for each kind of site at recreation.gov",
+       y = "Number of facilities in NC",
+       fill = "Site type",
+       caption = my_caption
+  )
+```
+
+<br>
+
+### Days with occupancy at 100% and 90% of maximum occupancy {#sec-days-with-occupancy}
+
+<br>
+
+```{r}
+#| label: fig-facilities-at-max-occ
+#| fig-cap: "Table of facilities and days at maximum occupancy"
+#| column: page-right
+
+max_occupancy_by_year_season  %>%
+  gt() %>%
+  tab_header(md(glue("**Number of days facilities were at max occupancy (100%)**<br>{year_start}-{year_stop} by site type with two or more occasions"))) %>%
+  tab_footnote(md("*Simple addition of n_days for each site type, not checking whether any of the max occupancy dates overlapped*"),
+               locations = cells_column_labels(columns = n_days_all_site_types))
+
+```
+
+<br><br>
+
+```{r}
+#| label: fig-facilities-at-90pct-occ
+#| fig-cap: "Table of facilities and days at 90%+ occupancy"
+#| column: page-right
+
+max_occupancy_by_year_season_90pc %>%
+  gt() %>%
+  tab_header(md(glue("**Number of days facilities were at least 90% occupied**<br>{year_start}-{year_stop} by site type"))) %>%
+  tab_footnote(md("*Simple addition of n_days for each site type, not checking whether any of the max occupancy dates overlapped*"),
+               locations = cells_column_labels(columns = n_days_all_site_types))
+
+```
+
+<br><br>
+
+## Nationwide
+
+### USA-level inventory
+
+NC inventory on-boarding at recreation.gov seems generally consistent with the rest of the USA: 2008 was the first year that recreation.gov was able to offer reservations on nearly all of the existing camping facilities across the USA. So comparing later years with a 2009 baseline provides our best view of year-to-year increases in inventory in the parks. This includes some new or existing parks coming on-line as well, as seen above in the parks that have data only for very recent years.
+
+```{r}
+parks_all_years_overnight_for_plot <- park_years_usa %>%
+  group_by(facility_id, facility_name, site_type) %>%
+  summarize(n_years = n(),
+            year_min = min(start_year, na.rm = TRUE),
+            year_max = max(start_year, na.rm = TRUE)
+  ) %>%
+  ungroup() %>%
+  filter(site_type != "management") %>%
+  mutate(site_type = fct_reorder(site_type, -n_years))
+
+```
+
+```{r}
+#| label: fig-facilities-newly-offering-site-type
+#| fig-cap: "Facilities newly offering additional site type for reservation"
+#| column: page-right
+
+parks_all_years_overnight_for_plot %>%
+  count(year_min, site_type) %>%
+  ggplot(aes(x = year_min, y = n, fill = site_type)) +
+  geom_col(alpha = 0.9) +
+  scale_y_continuous(label = comma_format()) +
+  scale_fill_viridis_d(end = 0.92, direction = -1) +
+  theme(panel.grid.major.x = element_blank()) +
+  labs(title = "Number of facilities newly offering \nsite_type_simple with 'Overnight' use_type",
+       subtitle = glue("As represented in published recreation.gov data set",
+                       " {min(parks_all_years_overnight_for_plot$year_min)}", 
+                       " to {max(parks_all_years_overnight_for_plot$year_min)}",
+                       "\neBy end of {year_lower_bound - 1} it seems most existing sites were reservable"),
+       x = "Year newly offering overnight reservations for each site type at recreation.gov",
+       y = "Number of facilities in the USA",
+       fill = "Site type",
+       caption = my_caption
+  )
+```
+
+<br>
+
+Starting in 2009 each year saw a very small number of campgrounds adding newly reservable overnight site types. Again, these are for the whole USA.
+
+```{r}
+#| label: fig-facilities-newly-offering-by-site-type
+#| fig-cap: "Facilities newly offering additional site type for reservation - by site type"
+#| fig-height: 6
+#| column: page-right
+
+parks_all_years_overnight_for_plot %>%
+  filter(year_min >= year_lower_bound) %>%
+  ggplot(aes(year_min, fill = site_type)) +
+  geom_histogram(binwidth = 1, alpha = 0.9) +
+  scale_x_continuous(breaks = c(2005, 2010, 2015, 2020)) +
+  facet_wrap(~site_type) +
+  scale_fill_viridis_d(end = 0.92, direction = -1) +
+  theme(panel.grid.major.x = element_blank(),
+        legend.position = "none") +
+  labs(title = "Number of facilities newly offering \nsite_type_simple with 'Overnight' use_type by year",
+       subtitle = glue("As represented in published recreation.gov data set",
+                       " {year_lower_bound}", 
+                       " to {max(parks_all_years_overnight_for_plot$year_min)}"),
+       x = "Year newly offering overnight reservations for each site type at recreation.gov",
+       y = "Number of facilities in the USA",
+       fill = "Site type",
+       caption = my_caption
+  )
+```
+
+<br>
+
+```{r}
+#| label = "cagr"
+#from https://datascience.stackexchange.com/questions/26347/compound-annual-growth-rate-function-in-r-statistics
+CAGR_formula <- function(FV, PV, yrs) {
+  (FV/PV)^(1/yrs)-1
+}
+
+parks_all_years_overnight_for_plot <- park_years_usa %>%
+  filter(site_type != "management",
+         start_year >= year_lower_bound) %>%
+  group_by(start_year, site_type) %>%
+  summarize(n_parks = n()) %>%
+  ungroup() %>%
+  group_by(site_type) %>%
+  mutate(cagr_by_site_type = CAGR_formula(sum(n_parks[start_year == 2020]), 
+                                          sum(n_parks[start_year == year_lower_bound]), 
+                                          2020 - year_lower_bound)
+         ) %>%
+  ungroup() %>%
+  mutate(site_type_simple_label = glue("{site_type} ({percent(cagr_by_site_type, accuracy = 0.1)})"),
+    site_type_simple_label = fct_reorder(site_type_simple_label, -n_parks)) 
+
+cagr <- with(parks_all_years_overnight_for_plot,
+             CAGR_formula(sum(n_parks[start_year == 2020]), sum(n_parks[start_year == year_lower_bound]), yrs = 2020 - year_lower_bound + 1)
+             )
+```
+
+It seems like normal growth in in 2009 and following years as facilities added additional types of sites and perhaps some new facilities opened. The overall compound annual growth rate^[Growth rate in the number of facilities offering the various types of overnight sites, each facility + site_type counted once each year.] between `r year_lower_bound` and 2020 was `r percent(cagr, accuracy = 0.1)`, with some differences in the kinds of sites:
+
+```{r}
+#| label: fig-facilities-offering-site-type-line-plot
+#| fig-cap: "Growth rate in facilities offering site type for reservation - by year"
+#| column: page-right
+
+parks_all_years_overnight_for_plot %>%
+  ggplot(aes(start_year, n_parks, color = site_type_simple_label)) +
+  geom_line(size = 0.5, show.legend = FALSE) +
+  geom_point(size = 2) +
+  scale_x_continuous(breaks = c(2005, 2010, 2015, 2020)) +
+  scale_color_viridis_d(end = 0.92, direction = -1) +
+  guides(color = guide_legend(override.aes = list(size = 3))) +
+  theme(panel.grid.major.x = element_blank()) +
+  labs(title = "Number of facilities offering site_type \nwith 'Overnight' use_type by year",
+       subtitle = glue("Compound annual growth rate (CAGR) for all offering site types: {percent(cagr, accuracy = 0.1)}",
+                       " from {min(parks_all_years_overnight_for_plot$start_year)} to",
+                       " {max(parks_all_years_overnight_for_plot$start_year)}",
+                       "\nAs represented in published recreation.gov data set"),
+       x = "Reservation start year",
+       color = "Site type (CAGR)",
+       caption = my_caption
+       )
+```
+
+<br>
+
+### Summary by state
+
+<br>
+
+```{r}
+#| label: fig-parks-us-offering-reservations
+#| fig-cap: "Public parks in USA with overnight camping reservations via recreation.gov"
+#| column: page-right
+
+park_years_usa %>%
+  filter(start_year == 2020) %>%
+  distinct(facility_state, facility_id, site_type, .keep_all = TRUE) %>%
+  group_by(facility_state) %>%
+  mutate(n_parks = n_distinct(facility_name)) %>%
+  ungroup() %>%
+  group_by(facility_state, n_parks, site_type) %>%
+  summarize(n_sites = n()) %>%
+  ungroup() %>%
+  pivot_wider(names_from = "site_type", values_from = "n_sites") %>%
+  select(facility_state, n_parks, tent, cabin, group, rv, equestrian, shelter, management, other) %>%
+  adorn_totals(where = c("row")) %>%
+  gt() %>%
+  tab_header(md(glue("**Public parks with overnight camping**", 
+                     "<br>with reservations at recreation.gov in 2020"))) %>%
+  tab_spanner(
+    label = "Number of parks offering site type",
+    columns = tent:other
+  ) %>%
+  tab_footnote(md("*Other includes 'boat in', 'anchorage', 'mooring', 'zone' and a few others*"),
+               cells_column_labels(columns = other)) %>%
+  fmt_number(columns = n_parks:other,
+             decimals = 0) %>%
+  sub_missing(columns = everything(),
+              missing_text = "")
+```
+
+<br><br>
+
+### Limitations in USA-level data
+
+The USA-level data does not include all reservable camping sites, presumably because they use a different reservation system. For example:
+
+* Yellowstone Hotel and Cabins are not reservable via recreation.gov, but campgrounds and backcountry camping permits are
+* Yosemite Creek Campground is not reservable, but other Yosemite campgrounds are
+* No overnight facilities in Hawaii are reservable (are there any?)
+
+In contrast: Great Smokey Mountain National Park campgrounds are all reservable.
+
+Some recreation areas allow camping; only two in the data set are reservable; they are not included here.
+
+<br>
+
+## Possible future explorations
+
+* Review occupancy rates by day and week. The number of weeks at max occupancy suggests that I may be under-counting the number of days at max occupancy. I wonder if the inconsistent results for RVs at the coast and cabins in the mountains are due to changes in the inventory over time compounded by inaccurate data due to the 2018 hand-over to another vendor? To what degree are the categories with more data also compromised?
+
+* I wonder whether growth at the NC state parks was similar over this time period. My hunch is that the NC parks are more often at max occupancy, so the growth rate may be capped. If the same data were available from ReserveAmerica.com perhaps I would do a similar analysis. Supposedly [there is an API](https://developer.active.com/docs/read/Campground_APIs), however the comments there suggest it is no longer available. The North Carolina Division of Parks and Recreation is part of the [N.C. Department of Natural and Cultural Resources](https://www.ncdcr.gov/about). Do they make the data available? I couldn't find it in any of the NC government-sponsored open data portals. Might they make the data available if I ask?
+
+* For full-USA view, it might be interesting to normalize n_parks and/or n_sights by state population or state area to see which states have a relative abundance or lack of federal campgrounds and/or campsites.
+
+* Which facilities have the most campers coming from out of state?
+
+<br>
+
+## Copyright and license
+
+By Daniel Moul (heydanielmoul at gmail)
+
+<img src="https://i.creativecommons.org/l/by/4.0/88x31.png" alt="CC-BY" /> This document is licensed under a <a href="http://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International License</a>
+
+Code is available at [github.com/dmoul/nc-camping](https://github.com/dmoul/nc-camping#readme) under the [MIT license](https://github.com/dmoul/nc-camping/blob/main/LICENSE). 
+
+The image on the first page is from <https://nps.gov/caha>, specifically [this photo](https://www.nps.gov/common/uploads/grid_builder/caha/crop16_9/4FEBA1FD-1DD8-B71B-0B1FB4542FEEF7B0.jpg) and is in the public domain.
+
+
+## Other analyses
+
+Other analyses in this series can be found at [dmoul.github.io](https://dmoul.github.io)
+
+<br><br>

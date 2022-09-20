@@ -1,0 +1,356 @@
+# Camping reservations
+
+```{r}
+#| label: "setup"
+#| include: FALSE
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+library(here)
+source(here("scripts", "my-setup.R"))
+
+```
+
+```{r}
+#| label: "read-target-objects"
+
+# facilities <- tar_read(facilities_all)
+# federal_org_info <- tar_read(federal_orgs)
+
+nc_history <- tar_read(nc_camping_history)
+
+year_min <- year_lower_bound
+year_max <- max(nc_history$year)
+
+# one row for each overnight stay (includes day of week (dow))
+nc_history_detail <- tar_read(nc_camping_history_detail) %>%
+  mutate(year = year(start_date))
+
+nc_parks_site_types <- nc_history %>%
+  mutate(
+      name_first_word = str_extract(facility_name, "\\w+")
+  ) %>% 
+  # slice_sample(n = 1e5) %>% # for testing
+  # This works because each first word is unique--it probably wouldn't work if looking at whole USA
+  group_by(name_first_word) %>%
+  mutate(facility_id_group = cur_group_id()
+  ) %>%
+  ungroup() %>%
+  group_by(facility_id_group, site_type) %>%
+  mutate(n_sites = n_distinct(product_id)) %>%
+  ungroup() %>%
+  distinct(facility_id_group, facility_id, site_type, .keep_all = TRUE) %>% 
+  select(name_first_word, facility_id, facility_name, facility_type_description, site_type, facility_id_group, n_sites) %>%
+  group_by(facility_id_group) %>%
+  mutate(facility_name = as.list(facility_name),
+         facility_name = glue_collapse(unique(facility_name), sep = " + "),
+         facility_id_list = as.list(facility_id),
+         facility_id_list = glue_collapse(unique(facility_id_list), sep = ", ")
+  ) %>%
+  ungroup() %>%
+  arrange(facility_name, site_type)
+# one row for each facility_name (combined) and site_type
+# for cases where only the facility_name ang or facility_group_id matters, use distinct()
+
+
+# nc_parks_site_types_product_id <- nc_history %>%
+#   mutate(
+#       name_first_word = str_extract(facility_name, "\\w+")
+#   ) %>% 
+#   # slice_sample(n = 1e5) %>% # for testing
+#   group_by(name_first_word) %>%
+#   mutate(facility_id_group = cur_group_id()
+#   ) %>%
+#   ungroup() %>%
+#   group_by(facility_id_group, site_type) %>%
+#   mutate(product_id_list = list(unique(product_id)),
+#          n_sites = length(product_id_list)) %>%
+#   ungroup() %>%
+#   distinct(facility_id_group, facility_id, site_type, .keep_all = TRUE) %>% 
+#   select(name_first_word, facility_id, facility_name, facility_type_description, site_type, facility_id_group, n_sites) %>%
+#   group_by(facility_id_group) %>%
+#   mutate(facility_name = as.list(facility_name),
+#          facility_name = glue_collapse(unique(facility_name), sep = " + "),
+#          facility_id_list = as.list(facility_id),
+#          facility_id_list = glue_collapse(unique(facility_id_list), sep = ", ")
+#   ) %>%
+#   ungroup() %>%
+#   arrange(facility_name, site_type)
+# # one row for each facility_name (combined) and site_type
+# # for cases where only the facility_name or facility_group_id matters, use distinct()
+
+# nc_campsites <- tar_read(nc_campsites_from_history) %>%
+#   rename(facility_name_original = facility_name) %>%
+#   left_join(.,
+#             nc_parks_site_types %>%
+#               select(facility_id_group, facility_name, facility_id = facility_id_list) %>%
+#               separate_rows(facility_id),
+#             by = "facility_id"
+#             ) %>%
+#   distinct(facility_id_group, facility_name, campsite_id)
+  
+park_years_nc <- tar_read(park_years_nc)
+
+# feather file seems to be flakey, so using targets() cached value instead
+# park_years <- readRDS("./data/processed/park-years.rds") %>% # could use .rds if we wanted to
+park_years_usa <- tar_read(park_years_usa) %>%  
+  filter(facility_name != "Washington Monument",
+         !is.na(start_year)) %>%
+  # Fix a data error
+  mutate(
+    facility_latitude = if_else(facility_name == "Cape Point Campground", 35.235278, facility_latitude),
+    facility_longitude = if_else(facility_name == "Cape Point Campground", -75.535278, facility_longitude)
+)
+
+# nc_yday <- tar_read(nc_camping_history_yday) %>%
+#   count(year, facility_name, site_type, season, day_of_reservation, yday_of_reservation,
+#         name = "n_campsites") %>% # number of campsites used that night (not person_nights)
+#   arrange(facility_name, year, yday_of_reservation)
+
+# nc_week <- tar_read(nc_camping_history_yday) %>%
+#   unnest(week_of_reservation, week_of_reservation2, yday_of_reservation) %>%
+#   count(year, facility_name, site_type, season, week_of_reservation, #n_campgrounds, 
+#         name = "n_campsites") %>%
+#   arrange(facility_name, year, week_of_reservation, site_type)
+
+# nc_week_n_camps_occupied <- tar_read(nc_camping_history_yday) %>%
+#   filter(year >= year_lower_bound,
+#          site_type != "management") %>%
+#   distinct(year, week_of_reservation, facility_name, site_type) %>%
+#   mutate(week_of_reservation = map(week_of_reservation, unique)) %>%
+#   unnest(week_of_reservation) %>%
+#   distinct(year, week_of_reservation, facility_name, site_type) %>%
+#   group_by(year, week_of_reservation, site_type) %>%
+#   summarize(n_campgrounds = n_distinct(facility_name)) %>%
+#   ungroup()
+
+# nc_week2 <- nc_history_detail %>%
+#   mutate(week_of_reservation = epiweek(overnight_date)) %>%
+#   group_by(facility_name, site_type, loc_mountains, year, week_of_reservation) %>%
+#   summarize(n_campsites = n_distinct(product_id)) %>%
+#   ungroup()
+
+# nc_week_n_camps_occupied2 <- nc_week2
+
+```
+
+
+## How far ahead do people reserve?
+
+As one might expect, sites in limited supply are booked earlier: more than a third of group sites and more than a quarter of of cabins are booked six months before the start date. In contrast: consistently, only a third of tent sites are reserved 30 days in advance.
+
+It looks like in the early years one could reserve most cabins with 6 months lead time. Then for 2012 and later years the cabin policy changed to 12 months lead time. 
+
+Tent, RV, and equestrian sites can be reserved six months in advance.
+
+The data for 2018 and 2019 seem to have some errors, which are visible in the upper right of each plot: why are there order dates after start_date? These are the only two years in which this pattern is visible in the plots. 
+
+I note again here that some parks have sites that are first-come, first-serve (i.e., they are not reservable). By definition those sites do not show up here.
+
+```{r}
+#| label: fig-reservation-pattern-by-year
+#| fig-cap: "Reservation-to-start date patterns - by year"
+#| fig.height: 9
+#| fig.width: 12
+#| column: page-right
+
+nc_history %>%
+  mutate(days_order_to_start = start_date - order_date,
+         #invalid_start_date = if_else(order_date > start_date + 1, 1, NULL), # not using this
+         site_type = fct_reorder(site_type, person_nights, sum)
+         ) %>%
+  filter(year >= year_lower_bound,
+         !site_type %in% c("management", "shelter")) %>%
+  ggplot(aes(days_order_to_start, color = site_type)) +
+  stat_ecdf() +
+  coord_cartesian(xlim = c(360, -30)) +
+  scale_x_reverse(breaks = c(0, 30, 60, 90, 180, 365)) +
+  scale_y_continuous(labels = percent_format()) +
+  scale_color_viridis_d(end = 0.92) +
+  geom_vline(xintercept = c(0, 30, 60, 90, 180, 365), color = "firebrick", alpha = 0.5, lty = 2) +
+  guides(color = guide_legend(override.aes = list(size = 3))) +
+  facet_wrap(~year, ncol = 4) +
+  theme(legend.position = "bottom") +
+  labs(title = "Reservation-to-start date patterns were remarkably consistent 2012-2012",
+       subtitle = "Percent of NC bookings by x days before start_date",
+       x = "Days before reservation starts",
+       y = "",
+       color = "Site type",
+       caption = my_caption)
+```
+
+<br>
+
+There has been a general trend towards reserving earlier:
+
+```{r}
+#| label: fig-reservation-pattern-by-type
+#| fig-cap: "Reservation-to-start date patterns - by site type"
+#| fig.height: 9
+#| fig.width: 12
+#| column: page-right
+
+nc_history %>%
+  filter(year >= year_lower_bound,
+         !site_type %in% c("management", "shelter")) %>%
+  mutate(days_order_to_start = start_date - order_date,
+         invalid_start_date = if_else(order_date > start_date + 1, 1, NULL),
+         
+         site_type = fct_reorder(site_type, person_nights, sum),
+         year = factor(year)
+         ) %>%
+  select(year, site_type, days_order_to_start) %>%
+  ggplot(aes(days_order_to_start, color = year)) +
+  stat_ecdf() +
+  coord_cartesian(xlim = c(360, -30)) +
+  scale_x_reverse(breaks = c(0, 30, 60, 90, 180, 365)) +
+  scale_y_continuous(labels = percent_format()) +
+  scale_color_viridis_d(end = 0.92) +
+  geom_vline(xintercept = c(0, 30, 60, 90, 180, 365), color = "firebrick", alpha = 0.5, lty = 2) +
+  guides(color = guide_legend(override.aes = list(size = 3))) +
+  facet_wrap(~ site_type, ncol = 3) +
+  theme(legend.position = "bottom") +
+  labs(title = "Reservations have been occuring earlier over the years\nsince 2012 for all site types",
+       subtitle = "Percent of NC bookings by x days before start_date",
+       x = "Days before reservation starts",
+       y = "",
+       color = "Site type",
+       caption = my_caption)
+```
+
+<br>
+
+The plots above mask differences in campgrounds. As you would expect some parks are more popular then others, with a greater portion of the reservations occurring earlier. Over the years, most properties are seeing earlier reservations. Swan Cabin is experiencing the opposite trend.
+
+The most popular group campgrounds seem to be Cove Creek Upper and Lower Group Camp, and Kuykendall Group Camp. Other group campsites are included with other site types, so if they have the same dynamic, it's not visible in these plots.
+
+Cabins and Group Camps are the most likely to show a linear-like increase in reservations over time (after the early birds reserve as soon as reservations open).
+
+
+```{r}
+#| label: define-days-to-start-plot-function
+
+nc_history_for_plot <- nc_history  %>%
+  filter(year >= year_lower_bound,
+         !site_type %in% c("management", "shelter")) %>%
+  group_by(year, facility_name) %>%
+  mutate(days_order_to_start = start_date - order_date,
+         # invalid_start_date = if_else(order_date > start_date + 1, 1, NULL),
+         site_type = fct_reorder(site_type, person_nights, sum),
+         year = factor(year)
+         ) %>%
+  ungroup() %>%
+  select(year, facility_name, site_type, days_order_to_start) 
+
+plot_order_to_start_by_site_type <- function(tbl) {
+  
+  site_types_in_plot <- glue_collapse(unique(tbl$site_type), sep = ", ")
+  
+  tbl %>%
+    ggplot(aes(days_order_to_start, color = year)) +
+    stat_ecdf() +
+    coord_cartesian(xlim = c(360, -30)) +
+    scale_x_reverse(breaks = c(0, 30, 60, 90, 180, 365),
+                    labels = c("", 30, "", 90, 180, 365)) +
+    scale_y_continuous(labels = percent_format()) +
+    scale_color_viridis_d(end = 0.92) +
+    geom_vline(xintercept = c(0, 30, 60, 90, 180, 365), color = "firebrick", alpha = 0.5, lty = 2) +
+    guides(color = guide_legend(override.aes = list(size = 3))) +
+    facet_wrap(~ facility_name, ncol = 6) +
+    theme(legend.position = "bottom") +
+    labs(title = glue("Reservations patterns for >>{site_types_in_plot}<< sites differ by campgound"),
+         subtitle = "Percent of bookings by x days before start_date",
+         x = "Days before reservation starts",
+         y = "",
+         color = "Site type",
+       caption = my_caption)
+  
+}
+```
+
+<br>
+
+Davidson River and Big Creek have about 50% of tent sites booked 60 days before start date. Most don't achieve that until 30 days or fewer before start date. It's interesting that 6 of the 32 campgrounds started offering reservations through recreation.gov in recent years. I assume in prior years these sites were not reservable.
+
+```{r}
+#| label: fig-reservation-pattern-tent
+#| fig-cap: "Reservation-to-start date patterns - tents"
+#| fig.height: 12
+#| fig.width: 12
+#| column: page-right
+
+nc_history_for_plot %>%
+  filter(site_type %in% c("tent")) %>%
+  plot_order_to_start_by_site_type(.)
+
+```
+
+<br>
+
+Cove Creek and Kuykendall group camps seem most popular, with nearly half the group reservations made a year in advance--as soon as the reservations opened. Next most popular are by Cataloochee and White Pines. Briar Bottom and North Mills River have seen remarkable increases in early reservations in recent years.
+
+```{r}
+#| label: fig-reservation-pattern-group
+#| fig-cap: "Reservation-to-start date patterns - group sites"
+#| fig.height: 9
+#| fig.width: 12
+#| column: page-right
+
+nc_history_for_plot %>%
+  filter(site_type %in% c("group")) %>%
+  plot_order_to_start_by_site_type(.)
+
+```
+
+<br>
+
+Wash Creek looks like the only equestrian camp to allow bookings a year in advance. Among the rest, Cataloochee has the most consistent reservation pattern over the years.
+
+```{r}
+#| label: fig-reservation-pattern-horse
+#| fig-cap: "Reservation-to-start date patterns - horse sites"
+#| fig.height: 9
+#| fig.width: 12
+#| column: page-right
+
+nc_history_for_plot %>%
+  filter(site_type == "equestrian") %>%
+  plot_order_to_start_by_site_type(.)
+
+```
+
+<br>
+
+With RV sites, Lake Powhatan and Smokemont have the biggest early surge when reservations open six months in advance.
+
+While Powhatan has been 75% booked 30 days in advance, Linville Falls has been less than 50% booked 15-20 days ahead.
+
+```{r}
+#| label: fig-reservation-pattern-rv
+#| fig-cap: "Reservation-to-start date patterns - rv sites"
+#| fig.height: 9
+#| fig.width: 12
+#| column: page-right
+
+nc_history_for_plot %>%
+  filter(site_type == "rv") %>%
+  plot_order_to_start_by_site_type(.)
+
+```
+
+<br>
+
+For the camps that allow cabin reservations a year in advance, Balsam Lake books faster than Great Island or Long Point. Of those that take bookings six months in advance, Swan books faster than Cheoah Point.
+
+```{r}
+#| label: fig-reservation-pattern-cabin
+#| fig-cap: "Reservation-to-start date patterns - cabins"
+#| fig.height: 6
+#| fig.width: 12
+#| column: page-right
+
+nc_history_for_plot %>%
+  filter(site_type == "cabin") %>%
+  plot_order_to_start_by_site_type(.)
+
+```

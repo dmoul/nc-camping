@@ -1,0 +1,1163 @@
+# Camping person-nights
+
+```{r}
+#| label: "setup"
+#| include: FALSE
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+library(here)
+source(here("scripts", "my-setup.R"))
+
+```
+
+```{r}
+#| label: "read-target-objects"
+
+# facilities <- tar_read(facilities_all)
+# federal_org_info <- tar_read(federal_orgs)
+
+nc_history <- tar_read(nc_camping_history)
+
+year_min <- year_lower_bound
+year_max <- max(nc_history$year)
+
+# one row for each overnight stay (includes day of week (dow))
+nc_history_detail <- tar_read(nc_camping_history_detail) %>%
+  mutate(year = year(start_date))
+
+nc_parks_site_types <- nc_history %>%
+  mutate(
+      name_first_word = str_extract(facility_name, "\\w+")
+  ) %>%
+  # slice_sample(n = 1e5) %>% # for testing
+  # This works because each first word is unique--it probably wouldn't work if looking at whole USA
+  group_by(name_first_word) %>%
+  mutate(facility_id_group = cur_group_id()
+  ) %>%
+  ungroup() %>%
+  group_by(facility_id_group, site_type) %>%
+  mutate(n_sites = n_distinct(product_id)) %>%
+  ungroup() %>%
+  distinct(facility_id_group, facility_id, site_type, .keep_all = TRUE) %>%
+  select(name_first_word, facility_id, facility_name, facility_type_description, site_type, facility_id_group, n_sites) %>%
+  group_by(facility_id_group) %>%
+  mutate(facility_name = as.list(facility_name),
+         facility_name = glue_collapse(unique(facility_name), sep = " + "),
+         facility_id_list = as.list(facility_id),
+         facility_id_list = glue_collapse(unique(facility_id_list), sep = ", ")
+  ) %>%
+  ungroup() %>%
+  arrange(facility_name, site_type)
+# one row for each facility_name (combined) and site_type
+# for cases where only the facility_name ang or facility_group_id matters, use distinct()
+
+
+# nc_parks_site_types_product_id <- nc_history %>%
+#   mutate(
+#       name_first_word = str_extract(facility_name, "\\w+")
+#   ) %>% 
+#   # slice_sample(n = 1e5) %>% # for testing
+#   group_by(name_first_word) %>%
+#   mutate(facility_id_group = cur_group_id()
+#   ) %>%
+#   ungroup() %>%
+#   group_by(facility_id_group, site_type) %>%
+#   mutate(product_id_list = list(unique(product_id)),
+#          n_sites = length(product_id_list)) %>%
+#   ungroup() %>%
+#   distinct(facility_id_group, facility_id, site_type, .keep_all = TRUE) %>% 
+#   select(name_first_word, facility_id, facility_name, facility_type_description, site_type, facility_id_group, n_sites) %>%
+#   group_by(facility_id_group) %>%
+#   mutate(facility_name = as.list(facility_name),
+#          facility_name = glue_collapse(unique(facility_name), sep = " + "),
+#          facility_id_list = as.list(facility_id),
+#          facility_id_list = glue_collapse(unique(facility_id_list), sep = ", ")
+#   ) %>%
+#   ungroup() %>%
+#   arrange(facility_name, site_type)
+# # one row for each facility_name (combined) and site_type
+# # for cases where only the facility_name or facility_group_id matters, use distinct()
+
+# nc_campsites <- tar_read(nc_campsites_from_history) %>%
+#   rename(facility_name_original = facility_name) %>%
+#   left_join(.,
+#             nc_parks_site_types %>%
+#               select(facility_id_group, facility_name, facility_id = facility_id_list) %>%
+#               separate_rows(facility_id),
+#             by = "facility_id"
+#             ) %>%
+#   distinct(facility_id_group, facility_name, campsite_id)
+  
+# park_years_nc <- tar_read(park_years_nc)
+
+# # feather file seems to be flakey, so using targets() cached value instead
+# # park_years <- readRDS("./data/processed/park-years.rds") %>% # could use .rds if we wanted to
+# park_years_usa <- tar_read(park_years_usa) %>%  
+#   filter(facility_name != "Washington Monument",
+#          !is.na(start_year)) %>%
+#   # Fix a data error
+#   mutate(
+#     facility_latitude = if_else(facility_name == "Cape Point Campground", 35.235278, facility_latitude),
+#     facility_longitude = if_else(facility_name == "Cape Point Campground", -75.535278, facility_longitude)
+# )
+
+# nc_yday <- tar_read(nc_camping_history_yday) %>%
+#   count(year, facility_name, site_type, season, day_of_reservation, yday_of_reservation,
+#         name = "n_campsites") %>% # number of campsites used that night (not person_nights)
+#   arrange(facility_name, year, yday_of_reservation)
+
+# nc_week <- tar_read(nc_camping_history_yday) %>%
+#   unnest(week_of_reservation, week_of_reservation2, yday_of_reservation) %>%
+#   count(year, facility_name, site_type, season, week_of_reservation, #n_campgrounds, 
+#         name = "n_campsites") %>%
+#   arrange(facility_name, year, week_of_reservation, site_type)
+
+# nc_week_n_camps_occupied <- tar_read(nc_camping_history_yday) %>%
+#   filter(year >= year_lower_bound,
+#          site_type != "management") %>%
+#   distinct(year, week_of_reservation, facility_name, site_type) %>%
+#   mutate(week_of_reservation = map(week_of_reservation, unique)) %>%
+#   unnest(week_of_reservation) %>%
+#   distinct(year, week_of_reservation, facility_name, site_type) %>%
+#   group_by(year, week_of_reservation, site_type) %>%
+#   summarize(n_campgrounds = n_distinct(facility_name)) %>%
+#   ungroup()
+
+# nc_week2 <- nc_history_detail %>%
+#   mutate(week_of_reservation = epiweek(overnight_date)) %>%
+#   group_by(facility_name, site_type, loc_mountains, year, week_of_reservation) %>%
+#   summarize(n_campsites = n_distinct(product_id)) %>%
+#   ungroup()
+
+# nc_week_n_camps_occupied2 <- nc_week2
+
+```
+
+
+These facilities provided nearly 7 million person-nights of camping 2009-2020.
+
+Some notes:
+
+* A `person_night` is one person camping one night. So if four people camp on a Friday and Saturday night, that's 8 person_nights. Based on personal experience organizing group camping events for Scouts, I think person-night counts for group sites are probably less accurate than the others (but likely within 10% of actual).
+* For most facilities, the data set includes separate `feature_id` values for each site_type offered. Some have slightly different names, for example, I have combined *Cataloochee Group Camp + Cataloochee Horse Camp + Cataloochee Campground* into one `facility_name` with a common `facility_id_group`.
+* For each `facility_id_group`, `n_sites` is a count of distinct `product_id` values. I assume that, in general, `product_id` values have not changed over time, and the same value is not used for multiple campsites at the same facility. This is not quite true, resulting in counts of camping sites in NC varying by up to 7%, depending how you count. For my purposes here this doesn't matter. Details are in *Appendix @sec-reuse-of-product-id There is some reuse of product_id values (unfortunately)*. 
+
+<br>
+
+```{r}
+campgrounds_all_years <- nc_history %>%
+  filter(year == year_lower_bound,
+         site_type != "management") %>%
+  distinct(facility_id, site_type, .keep_all = TRUE) %>%
+  select(facility_id, facility_name, site_type, year) %>%
+  mutate(all_years = TRUE)
+
+campgrounds_not_all_years <- 
+  nc_history %>%
+  filter(year >= year_lower_bound,
+         site_type != "management") %>%
+  distinct(facility_id, site_type, year, .keep_all = TRUE) %>%
+  select(facility_id, facility_name, site_type, year) %>%
+  anti_join(campgrounds_all_years,
+            by = c("facility_id", "facility_name", "site_type")
+            ) %>%
+  group_by(facility_id, facility_name, site_type) %>%
+  mutate(year_min = min(year)) %>%
+  ungroup() %>%
+  filter(year == year_min) %>%
+  mutate(all_years = FALSE) %>%
+  select(-year_min)
+
+nc_campgrounds_year_min <- 
+  bind_rows(
+    campgrounds_all_years,
+    campgrounds_not_all_years
+  ) %>%
+  arrange(facility_name, site_type) %>%
+  mutate(first_word  = str_extract(facility_name, "\\w+")) %>%
+  group_by(first_word) %>%
+  mutate(n_site_types = n(),
+         ignore = sum(all_years) == 0) %>%
+  ungroup()
+
+nc_history_camps_all_years <- 
+  inner_join(
+    campgrounds_all_years %>% select(-year),
+    nc_history,
+    by = c("facility_id", "facility_name", "site_type")
+) %>%
+  select(-all_years)
+
+```
+
+```{r}
+
+year_end <- 2019
+
+nc_camping_person_nights_and_revenue_site_type <- nc_history %>%
+  mutate(year = year(start_date)) %>%
+  filter(between(year, year_lower_bound, year_end),
+         !str_detect(site_type, "management")) %>%
+  rename(facility_name_original = facility_name) %>%
+  mutate(facility_first_word = str_extract(facility_name_original, "\\w+"),
+         year = year - year_lower_bound + 1) %>% # year 1 is 2009
+  inner_join(.,
+             nc_parks_site_types %>% 
+               select(facility_id_group, facility_name, facility_id_list) %>%
+               mutate(facility_first_word = str_extract(facility_name, "\\w+")),
+             by = "facility_first_word") %>%
+  group_by(year, facility_name_original, facility_id, facility_id_list, 
+           facility_first_word, facility_name, facility_id_group, 
+           site_type) %>%
+  summarize(n_reservations = n(), 
+            revenue_in_year = sum(total_paid, na.rm = TRUE),
+            person_nights = sum(person_nights)
+            ) %>%
+  ungroup() %>%
+  mutate(n_reservations_c = n_reservations - mean(n_reservations),
+         revenue_in_year_c = revenue_in_year - mean(revenue_in_year),
+         person_nights_c = person_nights - mean(person_nights),
+         log_n_reservations = log(n_reservations)
+  )
+
+nc_camping_person_nights_and_revenue_site_type_camps_all_years <- nc_history_camps_all_years %>%
+  mutate(year = year(start_date)) %>%
+  filter(between(year, year_lower_bound, year_end),
+         !str_detect(site_type, "management")) %>%
+  rename(facility_name_original = facility_name) %>%
+  mutate(facility_first_word = str_extract(facility_name_original, "\\w+"),
+         year = year - year_lower_bound + 1) %>% # year 1 is 2009
+  inner_join(.,
+             nc_parks_site_types %>% 
+               select(facility_id_group, facility_name, facility_id_list) %>%
+               mutate(facility_first_word = str_extract(facility_name, "\\w+")),
+             by = "facility_first_word") %>%
+  group_by(year, facility_name_original, facility_id, facility_id_list, 
+           facility_first_word, facility_name, facility_id_group, 
+           site_type) %>%
+  summarize(n_reservations = n(), 
+            revenue_in_year = sum(total_paid, na.rm = TRUE),
+            person_nights = sum(person_nights)
+            ) %>%
+  ungroup() %>%
+  mutate(n_reservations_c = n_reservations - mean(n_reservations),
+         revenue_in_year_c = revenue_in_year - mean(revenue_in_year),
+         person_nights_c = person_nights - mean(person_nights),
+         log_n_reservations = log(n_reservations)
+  )
+
+y_axis_max_person_nights <- 
+  nc_camping_person_nights_and_revenue_site_type %>%
+  filter(year == max(year)) %>%
+  pull(person_nights) %>%
+  sum()
+
+y_axis_max_person_nights_camps_all_years <- 
+  nc_camping_person_nights_and_revenue_site_type_camps_all_years %>%
+  filter(year == max(year)) %>%
+  pull(person_nights) %>%
+  sum()
+
+questrian_person_nights <- 
+  nc_camping_person_nights_and_revenue_site_type %>%
+  filter(year == max(year),
+         site_type == "equestrian") %>%
+  pull(person_nights) %>%
+  sum()
+
+equestrian_person_nights_camps_all_years <- 
+  nc_camping_person_nights_and_revenue_site_type_camps_all_years %>%
+  filter(year == max(year),
+         site_type == "equestrian") %>%
+  pull(person_nights) %>%
+  sum()
+
+non_organic_growth_person_nights <- percent(y_axis_max_person_nights / y_axis_max_person_nights_camps_all_years - 1, 2)
+
+```
+
+## Trends: How much growth is due to new facilities or site types?
+
+As discussed in *Appendix @sec-reservable-sites-added Reservable sites added during the years of interest*, some recorded growth is due to more inventory added to the recreation.gov reservation system, which inflates the growth rate. How much? In `r year_end` it was `r non_organic_growth_person_nights` of all person_nights.
+
+In year-based comparison views, I provide both views.
+
+```{r}
+#| label: fig-person-nights
+#| fig-cap: "Growth in NC camping person nights (all sites and same site comparisons)"
+#| fig.width: 15
+#| fig.height: 9
+#| column: page-right
+
+p1 <- nc_camping_person_nights_and_revenue_site_type %>%
+  group_by(year, site_type) %>%
+  summarize(person_nights = sum(person_nights)) %>%
+  ungroup() %>%
+  mutate(site_type = fct_reorder(site_type, person_nights),
+         year = year + year_lower_bound - 1) %>% #view()
+  ggplot(aes(x = year, y = person_nights, fill = site_type)) +
+  geom_hline(yintercept = c(y_axis_max_person_nights_camps_all_years,
+                            y_axis_max_person_nights),
+             lty = 2, color = "firebrick", alpha = 0.5) +
+  annotate("text", 
+           x = year_lower_bound + 0.5, 
+           y = 0.9 * y_axis_max_person_nights, 
+           label = glue("Additional {non_organic_growth_person_nights}",
+                        " in final year",
+                        "\ncontributed by facility+site_type combos",
+                        "\nadded to reservation system after {year_lower_bound}"),
+           hjust = 0, size = 5, color = "firebrick") +
+  geom_area(alpha = 0.9) +
+  scale_x_continuous(labels = label_number(accuracy = 1, big.mark = ""),
+                     breaks = (1:5) * 2 + 2008) +
+  scale_y_continuous(label = label_number(scale_cut = cut_short_scale()),
+                     breaks = c(1e6, 2e6)) +
+  scale_fill_viridis_d(end = 0.92, direction = -1) +
+  expand_limits(y = c(0, y_axis_max_person_nights)) +
+  theme(legend.position = "none",
+        plot.tag.position = "topright") +
+  theme(panel.grid.major.x = element_blank()) +
+  labs(title = "Growth in NC camping person_nights",
+       subtitle = glue("All reserved sites {year_lower_bound}-{year_end}"),
+       x = NULL,
+       fill = "Site type",
+       tag = "(A)")
+
+p2 <- nc_camping_person_nights_and_revenue_site_type_camps_all_years %>%
+  group_by(year, site_type) %>%
+  summarize(person_nights = sum(person_nights)) %>%
+  ungroup() %>%
+  mutate(site_type = fct_reorder(site_type, person_nights),
+         year = year + year_lower_bound - 1) %>% #view()
+  ggplot(aes(x = year, y = person_nights, fill = site_type)) +
+  geom_hline(yintercept = c(y_axis_max_person_nights_camps_all_years,
+                            y_axis_max_person_nights),
+             lty = 2, color = "firebrick", alpha = 0.5) +
+  geom_area(alpha = 0.9) +
+  scale_x_continuous(labels = label_number(accuracy = 1, big.mark = ""),
+                     breaks = (1:5) * 2 + 2008) +
+  scale_y_continuous(label = label_number(scale_cut = cut_short_scale()),
+                     breaks = c(1e6, 2e6)) +
+  scale_fill_viridis_d(end = 0.92, direction = -1) +
+  expand_limits(y = c(0, y_axis_max_person_nights)) +
+  theme(legend.position = "bottom",
+        plot.tag.position = "topright",
+        panel.grid.major.x = element_blank()) +
+  labs(title = "",
+       subtitle = "Excludes facility + site_type combos not reservable in initial year",
+       x = NULL,
+       fill = "Site type",
+       tag = "(B)",
+       caption = my_caption)
+
+p1 + p2
+```
+
+<br>
+
+The remainder of this section refers to (B):
+
+After the small dip in 2013 growth started in 2014. The number of additional nights of tent camping make up most of the increase, even though RV and group camping grew faster than tent camping.
+
+```{r}
+#| label: "nc-cagr-person-night-and-revenue"
+
+#from https://datascience.stackexchange.com/questions/26347/compound-annual-growth-rate-function-in-r-statistics
+CAGR_formula <- function(FV, PV, yrs) {
+  (FV/PV)^(1/yrs) - 1
+}
+
+cagr_year_start <- 2013
+cagr_year_end <- 2019
+
+cagr_for_table <- nc_camping_person_nights_and_revenue_site_type_camps_all_years %>%
+  mutate(year = year + 2008) %>%
+  filter(site_type != "management",
+         between(year, cagr_year_start, cagr_year_end)) %>%
+  group_by(year, site_type) %>%
+  summarize(person_nights = sum(person_nights),
+            revenue_in_year = sum(revenue_in_year)
+            ) %>%
+  ungroup() %>%
+  group_by(site_type) %>%
+  mutate(
+    cagr_person_nights_by_site_type = CAGR_formula(sum(person_nights[year == cagr_year_end]), 
+                                                   sum(person_nights[year == cagr_year_start]), 
+                                                   cagr_year_end - cagr_year_start),
+    cagr_revenue_by_site_type = CAGR_formula(sum(revenue_in_year[year == cagr_year_end]), 
+                                          sum(revenue_in_year[year == cagr_year_start]), 
+                                          cagr_year_end - cagr_year_start)
+         ) %>%
+  ungroup() %>%
+  mutate(
+    site_type_label_person_nights = glue("{site_type} ({percent(cagr_person_nights_by_site_type, accuracy = 0.1)})"),
+    site_type_label_person_nights = fct_reorder(site_type_label_person_nights, -person_nights),
+    site_type_label_revenue = glue("{site_type} ({percent(cagr_revenue_by_site_type, accuracy = 0.1)})"),
+    site_type_label_revenue = fct_reorder(site_type_label_revenue, -person_nights),
+    )
+
+cagr_person_nights <- with(cagr_for_table,
+             CAGR_formula(sum(person_nights[year == cagr_year_end]), 
+                          sum(person_nights[year == cagr_year_start]), 
+                          yrs = cagr_year_end - cagr_year_start + 1)
+             )
+
+cagr_revenue <- with(cagr_for_table,
+             CAGR_formula(sum(revenue_in_year[year == cagr_year_end]), 
+                          sum(revenue_in_year[year == cagr_year_start]), 
+                          yrs = cagr_year_end - cagr_year_start + 1)
+             )
+
+growth_over_interval <- with(cagr_for_table,
+             sum(person_nights[year == max(year)]) / sum(person_nights[year == min(year)]) - 1
+             )
+```
+
+Since the small dip in 2013, growth in person_nights in same campgrounds + site_types through `r cagr_year_end` was `r percent(growth_over_interval, accuracy = 0.1)`. Why did growth start in 2014 and keep going? There is nothing in the data that answers this question. The compound annual growth rate (CAGR) was `r percent(cagr_person_nights, accuracy = 0.1)` for person_nights and `r percent(cagr_revenue, accuracy = 0.1)` for revenue. Growth varied by site_type:
+
+<br>
+
+```{r}
+cagr_for_table %>%
+  select(site_type, 
+         cagr_person_nights = cagr_person_nights_by_site_type, 
+         cagr_revenue = cagr_revenue_by_site_type) %>%
+  distinct(site_type, .keep_all = TRUE) %>%
+  gt() %>%
+  tab_header(md("**NC camping compound annual growth rate 2013 - 2019**<br>Same campgrounds + site types")) %>%
+  fmt_percent(columns = 2:3,
+              decimals = 1)
+
+```
+
+<br><br>
+
+The changes year-to-year and across the site types have been more variable than the above table implies:
+
+```{r}
+#| label: "prepare-person-nights-by-site-type"
+
+nc_yty_all_camps <- nc_camping_person_nights_and_revenue_site_type %>%
+  group_by(year, site_type) %>%
+  summarize(person_nights_yearly_sum = sum(person_nights)) %>%
+  ungroup() %>%
+  group_by(site_type) %>%
+  mutate(pn_year_start = sum(person_nights_yearly_sum[year == 1])) %>%
+  ungroup() %>%
+  group_by(year, site_type) %>%
+  summarize(person_nights_normalized = person_nights_yearly_sum / pn_year_start) %>% # 100 * 
+  ungroup() %>%
+  mutate(year = year + 2008)
+
+nc_yty_yearly_sum_all_camps <- nc_camping_person_nights_and_revenue_site_type %>%
+  mutate(pn_year_start = sum(person_nights[year == 1])) %>%
+  group_by(year) %>%
+  summarize(person_nights_yearly_sum = sum(person_nights),
+            person_nights_normalized = person_nights_yearly_sum / pn_year_start) %>% # 100 * 
+  ungroup() %>%
+  distinct(year, .keep_all = TRUE) %>%
+  mutate(year = year + 2008)
+
+# now same campgounds and site_type
+
+nc_yty <- nc_camping_person_nights_and_revenue_site_type_camps_all_years %>%
+  group_by(year, site_type) %>%
+  summarize(person_nights_yearly_sum = sum(person_nights)) %>%
+  ungroup() %>%
+  group_by(site_type) %>%
+  mutate(pn_year_start = sum(person_nights_yearly_sum[year == 1])) %>%
+  ungroup() %>%
+  group_by(year, site_type) %>%
+  summarize(person_nights_normalized = person_nights_yearly_sum / pn_year_start) %>% # 100 * 
+  ungroup() %>%
+  mutate(year = year + 2008)
+
+nc_yty_yearly_sum <- nc_camping_person_nights_and_revenue_site_type_camps_all_years %>%
+  mutate(pn_year_start = sum(person_nights[year == 1])) %>%
+  group_by(year) %>%
+  summarize(person_nights_yearly_sum = sum(person_nights),
+            person_nights_normalized = person_nights_yearly_sum / pn_year_start) %>% # 100 * 
+  ungroup() %>%
+  distinct(year, .keep_all = TRUE) %>%
+  mutate(year = year + 2008)
+
+```
+
+```{r}
+#| label: "fig-person-nights-by-site-type"
+#| fig-cap: "Person nights by site_type"
+#| fig.width: 9
+#| fig.height: 6
+#| column: page-right
+#| eval: false
+
+ nc_yty %>%
+  ggplot() +
+  geom_line(aes(year, person_nights_normalized, color = site_type), 
+            size = 0.5, alpha = 0.4, show.legend = FALSE) +
+  geom_point(aes(year, person_nights_normalized, color = site_type), 
+             size = 2, alpha = 0.9) +
+  geom_smooth(data = nc_yty_yearly_sum,
+              aes(year, person_nights_normalized)
+              ) +
+  scale_x_continuous(breaks = c(2010, 2015, 2020)) +
+  scale_color_viridis_d(end = 0.8) +
+  expand_limits(y = 0.8 * min(nc_yty$person_nights_normalized)) +
+  guides(color = guide_legend(reverse = TRUE, override.aes = list(size = 3))) +
+  labs(title = "Person nights by site_type",
+       subtitle = glue("Same camgrounds and site types; {min(nc_yty$year)}-{max(nc_yty$year)}; {min(nc_yty$year)} = 100"),
+       x = NULL,
+       y = "Person-nights normalized",
+       caption = my_caption
+  )
+
+```
+
+```{r}
+#| label: "fig-person-nights-by-site-type-facets"
+#| fig-cap: "Normalized growth in person nights by site_type (same campgrounds and all campgrounds)"
+#| fig.width: 9
+#| fig.height: 9
+#| column: page-right
+
+nc_yty_all_camps |>
+  mutate(source = "all_camps") |>
+  bind_rows(nc_yty |>
+            mutate(source = "same_camps")
+            ) |>
+  ggplot() +
+  geom_hline(yintercept = 1, lty = 2, size = 0.5, alpha = 0.5) +
+  geom_line(aes(year, person_nights_normalized, color = source), 
+            size = 0.5, alpha = 0.4, show.legend = FALSE) +
+  geom_point(aes(year, person_nights_normalized, color = source), 
+             size = 2, alpha = 0.9) +
+  scale_x_continuous(breaks = (0:9 * 2) + 2008) +
+  scale_y_continuous(breaks = c(0, 1, 2.5, 5, 7.5, 10)) + # 300, 600, 900)) +
+  scale_color_viridis_d(end = 0.8) +
+  facet_wrap(~site_type) +
+  expand_limits(y = 0) +
+  theme(panel.grid.major.x = element_blank(),
+        legend.position = "bottom",
+        plot.tag.position = "topright") +
+  guides(color = guide_legend(reverse = TRUE, override.aes = list(size = 3))) +
+  labs(title = "Normalized growth in person nights by site_type\n(same campgrounds and all campgrounds)",
+       subtitle = glue("{min(nc_yty$year)}-{max(nc_yty$year)}; {min(nc_yty$year)} = 1"),
+       x = NULL,
+       y = "Person-nights normalized",
+       caption = NULL
+  )
+
+```
+
+```{r}
+#| label: "fig-person-nights-by-site-type-a-b"
+#| fig-cap: "Person nights by site_type"
+#| fig.width: 9
+#| fig.height: 6
+#| column: page-right
+#| eval: false
+
+max_y <- 1.01 * max(nc_yty_all_camps$person_nights_normalized)
+
+p1 <- nc_yty_all_camps %>%
+  ggplot() +
+  geom_line(aes(year, person_nights_normalized, color = site_type), 
+            size = 0.5, alpha = 0.4, show.legend = FALSE) +
+  geom_point(aes(year, person_nights_normalized, color = site_type), 
+             size = 2, alpha = 0.9) +
+  geom_smooth(data = nc_yty_yearly_sum,
+              aes(year, person_nights_normalized)
+              ) +
+  scale_x_continuous(breaks = c(2010, 2015, 2020)) +
+  scale_color_viridis_d(end = 0.8) +
+  expand_limits(y = c(0.8 * min(nc_yty$person_nights_normalized), max_y)) +
+  theme(legend.position = "none",
+        plot.tag.position = "topright") +
+  guides(color = guide_legend(reverse = TRUE, override.aes = list(size = 3))) +
+  labs(title = "Person nights by site_type",
+       subtitle = glue("All camgrounds and site types", 
+                       "\n{min(nc_yty$year)}-{max(nc_yty$year)}; {min(nc_yty$year)} = 100"),
+       x = NULL,
+       y = "Person-nights normalized",
+       tag = "(A)",
+       caption = NULL
+  )
+
+p2 <- nc_yty %>%
+  ggplot() +
+  geom_line(aes(year, person_nights_normalized, color = site_type), 
+            size = 0.5, alpha = 0.4, show.legend = FALSE) +
+  geom_point(aes(year, person_nights_normalized, color = site_type), 
+             size = 2, alpha = 0.9) +
+  geom_smooth(data = nc_yty_yearly_sum,
+              aes(year, person_nights_normalized)
+              ) +
+  scale_x_continuous(breaks = c(2010, 2015, 2020)) +
+  scale_color_viridis_d(end = 0.8) +
+  #expand_limits(y = 0.8 * min(nc_yty$person_nights_normalized)) +
+  expand_limits(y = c(0.8 * min(nc_yty$person_nights_normalized), max_y)) +
+  guides(color = guide_legend(reverse = TRUE, override.aes = list(size = 3))) +
+  theme(legend.position = "bottom",
+        plot.tag.position = "topright") +
+  labs(#title = "Person nights by site_type",
+       subtitle = glue("Same camgrounds and site types",
+                       "\n"),
+       x = NULL,
+       y = NULL,
+       tag = "(B)",
+       caption = my_caption
+  )
+
+p1 + p2
+
+```
+
+
+## Trends in person-nights and revenue per park
+
+The changes varied a lot: most campgrounds became more popular; some saw similar levels of popularity, for a small number popularity declined (see for example: Flanners Beach and Tow String Horse Camp).
+
+```{r}
+nc_camping_person_nights_and_revenue <- nc_history %>%
+  mutate(facility_first_word = str_extract(facility_name, "\\w+")) %>%
+  rename(facility_name_original = facility_name) %>%
+  inner_join(.,
+             nc_parks_site_types %>% 
+               select(facility_id_group, facility_name, facility_id_list) %>%
+               mutate(facility_first_word = str_extract(facility_name, "\\w+")),
+             by = "facility_first_word") %>%
+  filter(!str_detect(site_type, "management")) %>%
+  group_by(year, facility_name) %>%
+  summarize(n = n(), 
+            revenue_in_year = sum(total_paid, na.rm = TRUE),
+            person_nights = sum(person_nights)
+            ) %>%
+  ungroup()
+```
+
+```{r}
+#| label: "person-nights-by-campground"
+#| fig-cap: "NC person-nights camping per year by campground"
+#| fig.height: 16
+#| fig.width: 16
+#| column: page-right
+
+facility_name_levels_person_nights <- nc_camping_person_nights_and_revenue %>%
+  group_by(facility_name) %>%
+  filter(person_nights == max(person_nights),
+         n > 1) %>%
+  ungroup() %>%
+  distinct(facility_name, person_nights) %>%
+  arrange(desc(person_nights)) %>%
+  pull(facility_name)
+
+nc_person_nights_for_plot <- nc_camping_person_nights_and_revenue %>%
+  filter(!str_detect(facility_name, "picnic"),
+        n > 1) %>%
+  mutate(facility_name = factor(facility_name, levels = facility_name_levels_person_nights)) %>%
+  arrange(as.integer(facility_name))
+
+park_names_midpoint <- floor(max(as.integer(nc_person_nights_for_plot$facility_name)) / 2)
+facilities_part1 <- tibble(facility_name = facility_name_levels_person_nights[1:park_names_midpoint])
+facilities_part2 <- tibble(facility_name = facility_name_levels_person_nights[(park_names_midpoint + 1):length(facility_name_levels_person_nights)])
+
+part1_person_nights <- nc_person_nights_for_plot %>%
+  mutate(facility_name = as.character(facility_name)) %>%
+  inner_join(., facilities_part1 %>%
+               mutate(facility_name = as.character(facility_name)), 
+             by = "facility_name") %>%
+   mutate(facility_name = factor(facility_name, levels = facility_name_levels_person_nights))
+
+part2_person_nights <- nc_person_nights_for_plot %>%
+  mutate(facility_name = as.character(facility_name)) %>%
+  inner_join(., facilities_part2 %>%
+               mutate(facility_name = as.character(facility_name)),
+             by = "facility_name") %>%
+   mutate(facility_name = factor(facility_name, levels = facility_name_levels_person_nights))
+
+plot_nc_camping_person_nights <- function(tbl) {
+  tbl %>%
+  ggplot(aes(year, person_nights)) +
+  #geom_line(color = "firebrick") +
+  geom_smooth(se = FALSE, span = 0.95,) +
+  geom_point(size = 2, color = "firebrick") +
+  scale_x_continuous(breaks = seq(2005, 2020, by = 5), labels = label_number(accuracy = 1)) +
+  scale_y_continuous(label = label_number(scale_cut = cut_short_scale())) +
+  scale_color_viridis_d(end = 0.92) +
+  guides(color = guide_legend(reverse = TRUE)) +
+  expand_limits(y = 0) +
+  facet_wrap(~ facility_name, ncol = 6, scales = "free_y", labeller = label_wrap_gen(width=20)) +
+  labs(title = "NC person-nights camping per year by campground",
+       subtitle = "Y axis varies. Subplots ordered by decending maximum yearly person-nights",
+       x = "",
+       y = "",
+       caption = my_caption)
+}
+
+p1 <- plot_nc_camping_person_nights(part1_person_nights)
+
+ggsave(here("figures", "nc_camping_person_nights_by_campsite_part1.png"),
+       height = 16, width = 16,
+       dpi = 300)
+
+p2 <- plot_nc_camping_person_nights(part2_person_nights)
+
+ggsave(here("figures", "nc_camping_person_nights_by_campsite_part2.png"),
+       height = 16, width = 16,
+       dpi = 300)
+
+```
+
+```{r}
+#| label: "campground-revenue-by-campground"
+#| fig-cap: "Camping revenue per year by campground (summer and off-season)"
+#| fig.height: 16
+#| fig.width: 16
+#| column: page-right
+
+facility_name_levels_revenue <- nc_camping_person_nights_and_revenue %>%
+  group_by(facility_name) %>%
+  filter(revenue_in_year == max(revenue_in_year),
+         n > 1) %>%
+  ungroup() %>%
+  distinct(facility_name, revenue_in_year) %>%
+  arrange(desc(revenue_in_year)) %>%
+  pull(facility_name)
+
+nc_revenue_for_plot <- nc_camping_person_nights_and_revenue %>%
+  filter(!str_detect(facility_name, "picnic"),
+         n > 1) %>%
+  mutate(facility_name = factor(facility_name, levels = facility_name_levels_revenue)) %>%
+  arrange(as.integer(facility_name))
+
+park_names_midpoint <- floor(max(as.integer(nc_person_nights_for_plot$facility_name)) / 2)
+facilities_part1 <- tibble(facility_name = facility_name_levels_revenue[1:park_names_midpoint])
+facilities_part2 <- tibble(facility_name = facility_name_levels_revenue[(park_names_midpoint + 1):length(facility_name_levels_revenue)])
+
+part1_revenue <- nc_revenue_for_plot %>%
+  mutate(facility_name = as.character(facility_name)) %>%
+  inner_join(., facilities_part1 %>%
+               mutate(facility_name = as.character(facility_name)),
+             by = "facility_name") %>%
+   mutate(facility_name = factor(facility_name, levels = facility_name_levels_revenue))
+
+part2_revenue <- nc_revenue_for_plot %>%
+  mutate(facility_name = as.character(facility_name)) %>%
+  inner_join(., facilities_part2 %>%
+               mutate(facility_name = as.character(facility_name)),
+             by = "facility_name") %>%
+   mutate(facility_name = factor(facility_name, levels = facility_name_levels_revenue))
+  
+plot_nc_camping_revenue <- function(tbl) {
+  tbl %>%
+  ggplot(aes(year, revenue_in_year)) +
+  geom_smooth(se = FALSE, span = 0.95,) +
+  geom_point(size = 2, color = "firebrick") +
+  scale_x_continuous(breaks = seq(2005, 2020, by = 5), 
+                     labels = label_number(accuracy = 1)) +
+  scale_y_continuous(labels = dollar_format(scale = 1/1000, suffix = "K")) +
+  scale_color_viridis_d(end = 0.92) +
+  guides(color = guide_legend(reverse = TRUE)) +
+  theme(legend.position = "top") +
+  expand_limits(y = 0) +
+  facet_wrap(~ facility_name, ncol = 6, scales = "free_y", labeller = label_wrap_gen(width=20)) +
+  labs(title = "NC camping revenue per year by campground (summer and off-season)",
+       subtitle = "Y axis varies. Subplots ordered by decending maximum yearly camping revenue",
+       x = "",
+       y = "",
+       caption = my_caption)
+}
+
+p3 <- plot_nc_camping_revenue(part1_revenue)
+
+ggsave(here("figures", "nc_camping_revenue_by_campsite_part1.png"),
+       height = 16, width = 16,
+       dpi = 300)
+
+p4 <- plot_nc_camping_revenue(part2_revenue)
+
+ggsave(here("figures", "nc_camping_revenue_by_campsite_part2.png"),
+       height = 16, width = 16,
+       dpi = 300)
+
+```
+
+<br>
+
+### Camping person-nights by park {#sec-camping-person-nights-by-park}
+
+Part 1:
+
+```{r}
+#| label: "fig-person-nights-per-year-per-campground-1"
+#| fig-cap: "NC person-nights per year by campground (part 1)"
+#| column: page-right
+
+knitr::include_graphics("./figures/nc_camping_person_nights_by_campsite_part1.png")
+
+# ![NC seasonal camping person-nights per year by campground (part 1)](`r here("figures", "nc_season_camping_person_nights_by_campsite_part1.png")`)
+
+```
+
+<br> 
+
+Part 2:
+
+```{r}
+#| label: "fig-person-nights-per-year-per-campground-2"
+#| fig-cap: "NC person-nights per year by campground (part 2)"
+#| column: page-right
+
+knitr::include_graphics("./figures/nc_camping_person_nights_by_campsite_part2.png")
+
+# ![NC seasonal camping person-nights per year by campground (part 2)](`r here("figures", "nc_season_camping_person_nights_by_campsite_part2.png")`)
+
+```
+
+<br>
+
+### Camping revenue by park
+
+Likewise camping revenue has been increasing in most parks, with 2020 being an anomaly for many of them.
+
+```{r}
+#| label: "campground-revenue-by-site-type"
+#| fig-cap: "Camping revenue per year by site type"
+#| fig.width: 15
+#| fig.height: 9
+#| column: page-right
+
+y_axis_max_revenue <- 
+  nc_camping_person_nights_and_revenue_site_type %>%
+  filter(year == max(year)) %>%
+  pull(revenue_in_year) %>%
+  sum()
+
+y_axis_max_revenue_camps_all_years <- 
+  nc_camping_person_nights_and_revenue_site_type_camps_all_years %>%
+  filter(year == max(year)) %>%
+  pull(revenue_in_year) %>%
+  sum()
+
+non_organic_growth_revenue <- percent(y_axis_max_revenue / y_axis_max_revenue_camps_all_years - 1, 2)
+
+p1 <- nc_camping_person_nights_and_revenue_site_type %>%
+  group_by(year, site_type) %>%
+  summarize(revenue_in_year = sum(revenue_in_year)) %>%
+  ungroup() %>%
+  mutate(site_type = fct_reorder(site_type, revenue_in_year),
+         year = year + year_lower_bound - 1) %>% #view()
+  ggplot(aes(x = year, y = revenue_in_year, fill = site_type)) +
+  geom_area(alpha = 0.9) +
+  scale_x_continuous(labels = label_number(accuracy = 1, big.mark = ""),
+                     breaks = (1:5) * 2 + 2008) +
+  scale_y_continuous(labels = label_number(scale_cut = cut_short_scale(),
+                                           prefix = "$")) +
+  scale_fill_viridis_d(end = 0.92, direction = -1) +
+  expand_limits(y = c(0, y_axis_max_revenue)) +
+  theme(legend.position = "none",
+        plot.tag.position = "topright") +
+  labs(title = "NC camping revenue by site type",
+       subtitle = glue("{year_lower_bound}-{year_end} all facility + site_type combos"),
+       x = NULL,
+       y = "Overnight camping revenue",
+       fill = "Site type",
+       tag = "(A)")
+
+p2 <- nc_camping_person_nights_and_revenue_site_type_camps_all_years %>%
+  group_by(year, site_type) %>%
+  summarize(revenue_in_year = sum(revenue_in_year)) %>%
+  ungroup() %>%
+  mutate(site_type = fct_reorder(site_type, revenue_in_year),
+         year = year + year_lower_bound - 1) %>% #view()
+  ggplot(aes(x = year, y = revenue_in_year, fill = site_type)) +
+  geom_area(alpha = 0.9) +
+  scale_x_continuous(labels = label_number(accuracy = 1, big.mark = ""),
+                     breaks = (1:5) * 2 + 2008) +
+  scale_y_continuous(labels = label_number(scale_cut = cut_short_scale(),
+                                           prefix = "$")) +
+  scale_fill_viridis_d(end = 0.92, direction = -1) +
+  expand_limits(y = c(0, y_axis_max_revenue)) +
+  theme(legend.position = "bottom",
+        plot.tag.position = "topright") +
+  labs(title = "",
+       subtitle = glue("{year_lower_bound}-{year_end} excludes facility + site_type combos not reservable in initial year"),
+       x = NULL,
+       y = "Overnight camping revenue",
+       fill = "Site type",
+       tag = "(B)",
+       caption = my_caption)
+
+p1 + p2
+```
+
+<br>
+
+Part 1:
+
+```{r}
+#| label: "fig-revenue-per-year-per-campground-1"
+#| fig-cap: "NC camping revenue per year by campground (part 1)"
+#| column: page-right
+
+knitr::include_graphics("./figures/nc_camping_revenue_by_campsite_part1.png")
+
+#![NC camping revenue per year by campground (part 1)](`r here("figures", "nc_camping_revenue_by_campsite_part1.png")`)
+
+```
+
+<br> 
+
+Part 2:
+
+```{r}
+#| label: "fig-revenue-per-year-per-campground-2"
+#| fig-cap: "NC camping revenue per year by campground (part 2)"
+#| column: page-right
+
+knitr::include_graphics("./figures/nc_camping_revenue_by_campsite_part2.png")
+
+#![NC camping revenue per year by campground (part 2)](`r here("figures", "nc_camping_revenue_by_campsite_part2.png")`)
+
+```
+
+<br>
+
+## Are the increases occurring during the summer or off-season?
+
+Defining the summer season to be the four months `r month(summer_season_start, label = TRUE)` `r day(summer_season_end)` to `r month(summer_season_end, label = TRUE)` `r day(summer_season_end)`, one can see that most camps are busiest during the summer. And while the number of camping person-nights has increased year-round, for most campgrounds, more of the growth has been during the summer:
+
+```{r}
+nc_camping_seasons <- nc_history %>%
+  mutate(facility_first_word = str_extract(facility_name, "\\w+")) %>%
+  rename(facility_name_original = facility_name) %>%
+  inner_join(.,
+             nc_parks_site_types %>% 
+               select(facility_id_group, facility_name, facility_id_list) %>%
+               mutate(facility_first_word = str_extract(facility_name, "\\w+")),
+             by = "facility_first_word") %>%
+  filter(!str_detect(site_type, "management")) %>%
+  mutate(
+    month = month(start_date),
+    season = if_else(between(yday(start_date), yday(summer_season_start), yday(summer_season_end)),
+                     "summer",
+                     "off-season"
+                     )
+    ) %>%
+  group_by(facility_name, year, season) %>%
+  summarize(n = n(), 
+            revenue_in_year = sum(total_paid, na.rm = TRUE),
+            person_nights = sum(person_nights)
+            ) %>%
+  ungroup()
+```
+
+```{r}
+#| label: "nc-park-person-nights-seaonality"
+
+facility_name_levels_person_nights <- nc_camping_seasons %>%
+  group_by(facility_name) %>%
+  filter(person_nights == max(person_nights),
+         n > 1) %>%
+  ungroup() %>%
+  distinct(facility_name, person_nights) %>%
+  arrange(desc(person_nights)) %>%
+  pull(facility_name)
+
+nc_person_nights_for_plot <- nc_camping_seasons %>%
+  filter(!str_detect(facility_name, "picnic"),
+        n > 1) %>%
+  mutate(facility_name = factor(facility_name, levels = facility_name_levels_person_nights)) %>%
+  arrange(as.integer(facility_name))
+
+park_names_midpoint <- floor(max(as.integer(nc_person_nights_for_plot$facility_name)) / 2)
+facilities_part1 <- tibble(facility_name = facility_name_levels_person_nights[1:park_names_midpoint])
+facilities_part2 <- tibble(facility_name = facility_name_levels_person_nights[(park_names_midpoint + 1):length(facility_name_levels_person_nights)])
+
+part1_person_nights <- nc_person_nights_for_plot %>%
+  mutate(facility_name = as.character(facility_name)) %>%
+  inner_join(., facilities_part1 %>%
+               mutate(facility_name = as.character(facility_name)),
+             by = "facility_name") %>%
+   mutate(facility_name = factor(facility_name, levels = facility_name_levels_person_nights))
+
+part2_person_nights <- nc_person_nights_for_plot %>%
+  mutate(facility_name = as.character(facility_name)) %>%
+  inner_join(., facilities_part2 %>%
+               mutate(facility_name = as.character(facility_name)),
+             by = "facility_name") %>%
+   mutate(facility_name = factor(facility_name, levels = facility_name_levels_person_nights))
+
+plot_nc_season_person_nights <- function(tbl) {
+  tbl %>%
+  ggplot(aes(year, person_nights, color = season)) +
+  geom_smooth(se = FALSE, span = 0.95,) +
+  geom_point(size = 2) +
+  scale_x_continuous(breaks = seq(2005, 2020, by = 5), labels = label_number(accuracy = 1)) +
+  scale_y_continuous(label = label_number(scale_cut = cut_short_scale())) +
+  scale_color_viridis_d(end = 0.8) +
+  guides(color = guide_legend(reverse = TRUE)) +
+  theme(legend.position = "top") +
+  expand_limits(y = 0) +
+  facet_wrap(~ facility_name, ncol = 6, scales = "free_y", labeller = label_wrap_gen(width=20)) +
+  labs(title = "NC person-nights camping per year by campground",
+       subtitle = "Y axis varies. Subplots ordered by decending maximum yearly person-nights",
+       x = "",
+       y = "",
+       caption = my_caption)
+}
+
+p5 <- plot_nc_season_person_nights(part1_person_nights)
+
+ggsave(here("figures", "nc_season_camping_person_nights_by_campsite_part1.png"),
+       height = 16, width = 16,
+       dpi = 300)
+
+p6 <- plot_nc_season_person_nights(part2_person_nights)
+
+ggsave(here("figures", "nc_season_camping_person_nights_by_campsite_part2.png"),
+       height = 16, width = 16,
+       dpi = 300)
+
+```
+
+<br>
+
+Part 1:
+
+```{r}
+#| label: "fig-person-nights-per-year-per-campground-seasonal-1"
+#| fig-cap: "NC person-nights per year by campground by season (part 1)"
+#| column: page-right
+
+knitr::include_graphics("./figures/nc_season_camping_person_nights_by_campsite_part1.png")
+
+# ![NC seasonal camping person-nights per year by campground (part 1)](`r here("figures", "nc_season_camping_person_nights_by_campsite_part1.png")`)
+
+```
+
+<br> 
+
+Part 2:
+
+```{r}
+#| label: "fig-person-nights-per-year-per-campground-seasonal-2"
+#| fig-cap: "NC person-nights per year by campground by season (part 2)"
+#| column: page-right
+
+knitr::include_graphics("./figures/nc_season_camping_person_nights_by_campsite_part2.png")
+
+# ![NC seasonal camping person-nights per year by campground (part 2)](`r here("figures", "nc_season_camping_person_nights_by_campsite_part2.png")`)
+
+```
+
+<br>
+
+## Are there trends by day of the week?
+
+Weekend nights are about twice as popular as mid-week:
+
+```{r}
+#| label: fig-camp-by-dow
+#| fig-cap: "Person-nights by day of the week"
+#| fig.width: 8
+
+
+nc_history_detail %>%
+  filter(year >= year_lower_bound) %>%
+  count(season, dow = day_label) %>%
+  mutate(dow_scaled = n / max(n)) %>%
+  ggplot(aes(dow, n, fill = season)) +
+  geom_col(alpha = 0.7) + 
+  scale_y_continuous(
+    label = label_number(scale_cut = cut_short_scale())#,
+    # sec.axis = sec_axis(trans = ~ .x / max(.x),
+    #                     labels = percent_format(),
+    #                     name = "Percentage of largest")
+  ) +
+  scale_fill_viridis_d(end = 0.8) +
+  theme(panel.grid.major.x = element_blank()) +
+  labs(title = "NC camping each night of the week",
+       x = "",
+       y = "person-nights",
+       caption = my_caption)
+
+```
+
+<br>
+
+Year-on-year the number of campers has been increasing every night of the week. The most noticeable 2020 anomaly is extra Sunday, Monday and Tuesday night camping durin the summer. Presumably this was due to the pandemic shutdown, perhaps because people had fewer recreational options than other years. The unusually low off-season 2020 numbers probably reflect camp closures.
+
+```{r}
+#| label: "fig-person-nights-by-dow-year-season"
+#| fig-cap: "NC person-nights camping each night of the week - on and off season"
+#| fig.width: 15
+#| fig.height: 9
+#| column: page-right
+
+p1_data <- nc_history_detail %>%
+  filter(year >= year_lower_bound) %>%
+  count(year, season, dow = day_label) %>%
+  mutate(year = factor(year),
+         dow_scaled = n / max(n)) 
+
+p2_data <- nc_history_detail %>%
+  filter(year >= year_lower_bound) %>%
+  anti_join(.,
+            campgrounds_not_all_years %>% select(facility_id, facility_name, site_type),
+            by = c("facility_id", "facility_name", "site_type")) %>%
+  count(year, season, dow = day_label) %>%
+  mutate(year = factor(year),
+         dow_scaled = n / max(n)) 
+
+y_axis_max_dow_n <- max(p1_data$n)
+  
+p1 <- p1_data %>%
+  ggplot(aes(dow, n, color = year, group = year)) + 
+  geom_line() + 
+  geom_point() + 
+  scale_y_continuous(
+    label = label_number(scale_cut = cut_short_scale())#,
+    # sec.axis = sec_axis(trans = ~ .x / max(.x),
+    #                     labels = percent_format(),
+    #                     name = "Percentage of largest")
+  ) +
+  scale_color_viridis_d(end = 0.92) +
+  expand_limits(y = c(0, y_axis_max_dow_n)) +
+  facet_wrap(~ season) +
+  theme(panel.grid.major.x = element_blank()) +
+  theme(legend.position = "none",
+        plot.tag.position = "topright") +
+  guides(color = guide_legend(reverse = TRUE, override.aes = list(size = 3))) +
+  labs(title = "NC person-nights camping each night of the week - on and off season",
+       subtitle = "All facility+site_type combos",
+       x = "",
+       tag = "(A)")
+
+p2 <- p2_data %>%
+  ggplot(aes(dow, n, color = year, group = year)) + 
+  geom_line() + 
+  geom_point() + 
+  scale_y_continuous(
+    label = label_number(scale_cut = cut_short_scale()) #,
+    # sec.axis = sec_axis(trans = ~ .x / max(.x),
+    #                     labels = percent_format(),
+    #                     name = "Percentage of largest")
+  ) +
+  scale_color_viridis_d(end = 0.92) +
+  expand_limits(y = c(0, y_axis_max_dow_n)) +
+  facet_wrap(~ season) +
+  theme(panel.grid.major.x = element_blank()) +
+  theme(legend.position = "bottom",
+        plot.tag.position = "topright") +
+  guides(color = guide_legend(reverse = TRUE, override.aes = list(size = 3))) +
+  labs(title = "",
+       subtitle = "Excludes facility + site_type combos not reservable in initial year",
+       x = "",
+       tag = "(B)",
+       caption = my_caption)
+
+p1 + p2
+
+```

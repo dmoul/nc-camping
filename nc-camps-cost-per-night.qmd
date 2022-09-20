@@ -1,0 +1,184 @@
+# Camping cost per person-night
+
+```{r}
+#| label: "setup"
+#| include: FALSE
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+library(here)
+source(here("scripts", "my-setup.R"))
+
+```
+
+```{r}
+#| label: "read-target-objects"
+
+# facilities <- tar_read(facilities_all)
+# federal_org_info <- tar_read(federal_orgs)
+
+nc_history <- tar_read(nc_camping_history)
+
+year_min <- year_lower_bound
+year_max <- max(nc_history$year)
+
+# # one row for each overnight stay (includes day of week (dow))
+# nc_history_detail <- tar_read(nc_camping_history_detail) %>%
+#   mutate(year = year(start_date))
+
+# nc_parks_site_types <- nc_history %>%
+#   mutate(
+#       name_first_word = str_extract(facility_name, "\\w+")
+#   ) %>% 
+#   # slice_sample(n = 1e5) %>% # for testing
+#   # This works because each first word is unique--it probably wouldn't work if looking at whole USA
+#   group_by(name_first_word) %>%
+#   mutate(facility_id_group = cur_group_id()
+#   ) %>%
+#   ungroup() %>%
+#   group_by(facility_id_group, site_type) %>%
+#   mutate(n_sites = n_distinct(product_id)) %>%
+#   ungroup() %>%
+#   distinct(facility_id_group, facility_id, site_type, .keep_all = TRUE) %>% 
+#   select(name_first_word, facility_id, facility_name, facility_type_description, site_type, facility_id_group, n_sites) %>%
+#   group_by(facility_id_group) %>%
+#   mutate(facility_name = as.list(facility_name),
+#          facility_name = glue_collapse(unique(facility_name), sep = " + "),
+#          facility_id_list = as.list(facility_id),
+#          facility_id_list = glue_collapse(unique(facility_id_list), sep = ", ")
+#   ) %>%
+#   ungroup() %>%
+#   arrange(facility_name, site_type)
+# # one row for each facility_name (combined) and site_type
+# # for cases where only the facility_name ang or facility_group_id matters, use distinct()
+
+
+# nc_parks_site_types_product_id <- nc_history %>%
+#   mutate(
+#       name_first_word = str_extract(facility_name, "\\w+")
+#   ) %>% 
+#   # slice_sample(n = 1e5) %>% # for testing
+#   group_by(name_first_word) %>%
+#   mutate(facility_id_group = cur_group_id()
+#   ) %>%
+#   ungroup() %>%
+#   group_by(facility_id_group, site_type) %>%
+#   mutate(product_id_list = list(unique(product_id)),
+#          n_sites = length(product_id_list)) %>%
+#   ungroup() %>%
+#   distinct(facility_id_group, facility_id, site_type, .keep_all = TRUE) %>% 
+#   select(name_first_word, facility_id, facility_name, facility_type_description, site_type, facility_id_group, n_sites) %>%
+#   group_by(facility_id_group) %>%
+#   mutate(facility_name = as.list(facility_name),
+#          facility_name = glue_collapse(unique(facility_name), sep = " + "),
+#          facility_id_list = as.list(facility_id),
+#          facility_id_list = glue_collapse(unique(facility_id_list), sep = ", ")
+#   ) %>%
+#   ungroup() %>%
+#   arrange(facility_name, site_type)
+# # one row for each facility_name (combined) and site_type
+# # for cases where only the facility_name or facility_group_id matters, use distinct()
+
+# nc_campsites <- tar_read(nc_campsites_from_history) %>%
+#   rename(facility_name_original = facility_name) %>%
+#   left_join(.,
+#             nc_parks_site_types %>%
+#               select(facility_id_group, facility_name, facility_id = facility_id_list) %>%
+#               separate_rows(facility_id),
+#             by = "facility_id"
+#             ) %>%
+#   distinct(facility_id_group, facility_name, campsite_id)
+  
+# park_years_nc <- tar_read(park_years_nc)
+
+# # feather file seems to be flakey, so using targets() cached value instead
+# # park_years <- readRDS("./data/processed/park-years.rds") %>% # could use .rds if we wanted to
+# park_years_usa <- tar_read(park_years_usa) %>%  
+#   filter(facility_name != "Washington Monument",
+#          !is.na(start_year)) %>%
+#   # Fix a data error
+#   mutate(
+#     facility_latitude = if_else(facility_name == "Cape Point Campground", 35.235278, facility_latitude),
+#     facility_longitude = if_else(facility_name == "Cape Point Campground", -75.535278, facility_longitude)
+# )
+
+# nc_yday <- tar_read(nc_camping_history_yday) %>%
+#   count(year, facility_name, site_type, season, day_of_reservation, yday_of_reservation,
+#         name = "n_campsites") %>% # number of campsites used that night (not person_nights)
+#   arrange(facility_name, year, yday_of_reservation)
+
+# nc_week <- tar_read(nc_camping_history_yday) %>%
+#   unnest(week_of_reservation, week_of_reservation2, yday_of_reservation) %>%
+#   count(year, facility_name, site_type, season, week_of_reservation, #n_campgrounds, 
+#         name = "n_campsites") %>%
+#   arrange(facility_name, year, week_of_reservation, site_type)
+
+# nc_week_n_camps_occupied <- tar_read(nc_camping_history_yday) %>%
+#   filter(year >= year_lower_bound,
+#          site_type != "management") %>%
+#   distinct(year, week_of_reservation, facility_name, site_type) %>%
+#   mutate(week_of_reservation = map(week_of_reservation, unique)) %>%
+#   unnest(week_of_reservation) %>%
+#   distinct(year, week_of_reservation, facility_name, site_type) %>%
+#   group_by(year, week_of_reservation, site_type) %>%
+#   summarize(n_campgrounds = n_distinct(facility_name)) %>%
+#   ungroup()
+
+# nc_week2 <- nc_history_detail %>%
+#   mutate(week_of_reservation = epiweek(overnight_date)) %>%
+#   group_by(facility_name, site_type, loc_mountains, year, week_of_reservation) %>%
+#   summarize(n_campsites = n_distinct(product_id)) %>%
+#   ungroup()
+
+# nc_week_n_camps_occupied2 <- nc_week2
+
+```
+
+
+## What does it cost per person, and how has that changed?
+
+Median cabin cost per person doubled in 2012, and equestrian per-person cost grew 2013- 2017. Otherwise median prices were generally stable. Note that these costs are not inflation-adjusted.
+
+Per-person costs at group and equestrian sites in 2020 seem like an aberration: either the more expensive sites were not used much, group sizes were a lot larger (which seems unlikely during the pandemic), there was some other change in usage pattern, or there could be a problem with the data.
+
+```{r}
+#| label: "nc-great-value"
+#| fig.width: 9
+#| fig.height: 6
+#| column: page-right
+
+nc_camping_cost <- nc_history %>%
+  filter(year >= year_lower_bound,
+         !str_detect(site_type, "management")) %>%
+  group_by(year, site_type) %>%
+  summarize(n = n(), 
+            n_person_nights = sum(person_nights, na.rm = TRUE),
+            cost_median = median(paid_person_night, na.rm = TRUE),
+            cost_avg = mean(paid_person_night, na.rm = TRUE)) %>%
+  ungroup()
+
+nc_camping_cost %>%
+  filter(site_type != "shelter") %>%
+  mutate(site_type = fct_reorder(site_type, cost_median, last)) %>%
+ ggplot(aes(year, cost_median, color = site_type, size = n_person_nights)) +
+  geom_line(alpha = 0.7, show.legend = FALSE) +
+  geom_point(size = rel(6)) + #
+  scale_x_continuous(breaks = seq(2005, 2020, by = 5)) +
+  scale_y_continuous(labels = dollar_format()) +
+  scale_color_viridis_d(end = 0.92) +
+  scale_size_continuous(labels = label_number(scale_cut = cut_short_scale())) +
+  guides(color = guide_legend(reverse = TRUE, override.aes = list(size = 3))) +
+  expand_limits(y = 0) +
+  theme(panel.grid.major.x = element_blank()) +
+  labs(title = "Camping in NC continues to be a great value",
+       subtitle = glue("Median cost per person-night",
+                    "\nat NC public campgrounds"),
+       x = "",
+       y = "",
+       color = "Site type",
+       size = "Number of\nperson nights",
+       caption = my_caption)
+
+```
+
+<br>

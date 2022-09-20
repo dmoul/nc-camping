@@ -1,0 +1,280 @@
+# Federal parks in North Carolina
+
+```{r}
+#| label: "setup"
+#| include: FALSE
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+library(here)
+source(here("scripts", "my-setup.R"))
+
+```
+
+```{r}
+#| label: "read-target-objects"
+
+# facilities <- tar_read(facilities_all)
+federal_org_info <- tar_read(federal_orgs)
+
+nc_history <- tar_read(nc_camping_history)
+
+year_min <- year_lower_bound
+year_max <- max(nc_history$year)
+
+# one row for each overnight stay (includes day of week (dow))
+# nc_history_detail <- tar_read(nc_camping_history_detail) %>%
+#   mutate(year = year(start_date))
+
+nc_parks_site_types <- nc_history %>%
+  mutate(
+      name_first_word = str_extract(facility_name, "\\w+")
+  ) %>% 
+  # slice_sample(n = 1e5) %>% # for testing
+  # This works because each first word is unique--it probably wouldn't work if looking at whole USA
+  group_by(name_first_word) %>%
+  mutate(facility_id_group = cur_group_id()
+  ) %>%
+  ungroup() %>%
+  group_by(facility_id_group, site_type) %>%
+  mutate(n_sites = n_distinct(product_id)) %>%
+  ungroup() %>%
+  distinct(facility_id_group, facility_id, site_type, .keep_all = TRUE) %>% 
+  select(name_first_word, facility_id, facility_name, facility_type_description, site_type, facility_id_group, n_sites) %>%
+  group_by(facility_id_group) %>%
+  mutate(facility_name = as.list(facility_name),
+         facility_name = glue_collapse(unique(facility_name), sep = " + "),
+         facility_id_list = as.list(facility_id),
+         facility_id_list = glue_collapse(unique(facility_id_list), sep = ", ")
+  ) %>%
+  ungroup() %>%
+  arrange(facility_name, site_type)
+# one row for each facility_name (combined) and site_type
+# for cases where only the facility_name ang or facility_group_id matters, use distinct()
+
+
+# nc_parks_site_types_product_id <- nc_history %>%
+#   mutate(
+#       name_first_word = str_extract(facility_name, "\\w+")
+#   ) %>% 
+#   # slice_sample(n = 1e5) %>% # for testing
+#   group_by(name_first_word) %>%
+#   mutate(facility_id_group = cur_group_id()
+#   ) %>%
+#   ungroup() %>%
+#   group_by(facility_id_group, site_type) %>%
+#   mutate(product_id_list = list(unique(product_id)),
+#          n_sites = length(product_id_list)) %>%
+#   ungroup() %>%
+#   distinct(facility_id_group, facility_id, site_type, .keep_all = TRUE) %>% 
+#   select(name_first_word, facility_id, facility_name, facility_type_description, site_type, facility_id_group, n_sites) %>%
+#   group_by(facility_id_group) %>%
+#   mutate(facility_name = as.list(facility_name),
+#          facility_name = glue_collapse(unique(facility_name), sep = " + "),
+#          facility_id_list = as.list(facility_id),
+#          facility_id_list = glue_collapse(unique(facility_id_list), sep = ", ")
+#   ) %>%
+#   ungroup() %>%
+#   arrange(facility_name, site_type)
+# # one row for each facility_name (combined) and site_type
+# # for cases where only the facility_name or facility_group_id matters, use distinct()
+
+nc_campsites <- tar_read(nc_campsites_from_history) %>%
+  rename(facility_name_original = facility_name) %>%
+  left_join(.,
+            nc_parks_site_types %>%
+              select(facility_id_group, facility_name, facility_id = facility_id_list) %>%
+              separate_rows(facility_id),
+            by = "facility_id"
+            ) %>%
+  distinct(facility_id_group, facility_name, campsite_id)
+  
+park_years_nc <- tar_read(park_years_nc)
+
+# # feather file seems to be flakey, so using targets() cached value instead
+# # park_years <- readRDS("./data/processed/park-years.rds") %>% # could use .rds if we wanted to
+# park_years_usa <- tar_read(park_years_usa) %>%  
+#   filter(facility_name != "Washington Monument",
+#          !is.na(start_year)) %>%
+#   # Fix a data error
+#   mutate(
+#     facility_latitude = if_else(facility_name == "Cape Point Campground", 35.235278, facility_latitude),
+#     facility_longitude = if_else(facility_name == "Cape Point Campground", -75.535278, facility_longitude)
+# )
+
+# nc_yday <- tar_read(nc_camping_history_yday) %>%
+#   count(year, facility_name, site_type, season, day_of_reservation, yday_of_reservation,
+#         name = "n_campsites") %>% # number of campsites used that night (not person_nights)
+#   arrange(facility_name, year, yday_of_reservation)
+
+# nc_week <- tar_read(nc_camping_history_yday) %>%
+#   unnest(week_of_reservation, week_of_reservation2, yday_of_reservation) %>%
+#   count(year, facility_name, site_type, season, week_of_reservation, #n_campgrounds, 
+#         name = "n_campsites") %>%
+#   arrange(facility_name, year, week_of_reservation, site_type)
+
+# nc_week_n_camps_occupied <- tar_read(nc_camping_history_yday) %>%
+#   filter(year >= year_lower_bound,
+#          site_type != "management") %>%
+#   distinct(year, week_of_reservation, facility_name, site_type) %>%
+#   mutate(week_of_reservation = map(week_of_reservation, unique)) %>%
+#   unnest(week_of_reservation) %>%
+#   distinct(year, week_of_reservation, facility_name, site_type) %>%
+#   group_by(year, week_of_reservation, site_type) %>%
+#   summarize(n_campgrounds = n_distinct(facility_name)) %>%
+#   ungroup()
+
+# nc_week2 <- nc_history_detail %>%
+#   mutate(week_of_reservation = epiweek(overnight_date)) %>%
+#   group_by(facility_name, site_type, loc_mountains, year, week_of_reservation) %>%
+#   summarize(n_campsites = n_distinct(product_id)) %>%
+#   ungroup()
+
+# nc_week_n_camps_occupied2 <- nc_week2
+
+```
+
+```{r}
+
+fy2020_summary <- nc_history %>%
+  filter(year == 2020) %>%
+  summarize(person_nights = sum(person_nights),
+            revenue = sum(total_paid))
+
+```
+
+
+## Federally-owned facilities in NC
+
+Following the data, I focus here on federal facilities rather than the NC State Park system. See *Appendix @sec-dataset-limitations What's possible given this data set?* These federal facilities in NC, amidst the oddities of 2020, provided `r comma(fy2020_summary$person_nights)` person-nights of camping and collected `r dollar(fy2020_summary$revenue)` in overnight camping fees. 
+
+For the sake of brevity, I refer to the facilities as "campgrounds" and "campsites" even though some are cabins, lodges, lookouts, and shelters.
+
+There are `r nrow(distinct(nc_parks_site_types, facility_id_group))` federal facilities in North Carolina offering reservations through recreation.gov, which I consolidated from `r nrow(distinct(nc_history, facility_id)) ` separate `facility_id` values (some parks identify cabins or group campgrounds with separate facility ids).
+
+A summary table can be found in *Appendix @sec-nc-facility-summary NC facility summary*
+
+<br>
+
+## Federal agencies and their camping facilities
+
+The following federal agencies offer overnight camping with reservations via recreation.gov:
+
+<br>
+
+```{r}
+
+nc_history %>%
+  left_join(.,
+            federal_org_info,
+            by = c("parent_org_id" = "org_id")
+  ) %>%
+  distinct(facility_id, .keep_all = TRUE) %>%
+  count(org_name, org_abbrev_name, org_url_address,
+        name = "n_facilities") %>%
+  select(org_name, n_facilities, org_abb = org_abbrev_name, org_url = org_url_address) %>%
+  arrange(-n_facilities) %>%
+  gt() %>%
+  tab_header(md(glue("**Federal agencies offering overnight camping reservations in NC**",
+                     "<br>via recreation.gov")))
+
+```
+
+<br><br>
+
+## Campground locations
+
+Campgrounds are nearly all in the mountains in the West or at coast in the East.
+
+```{r}
+
+nc_parks_for_map <- park_years_nc %>%
+  filter(!str_detect(facility_name, "Crabtree Falls")) %>%
+  mutate(facility_name = str_remove(facility_name, " Camp(.*$)?"),
+         facility_name = str_remove(facility_name, " Horse(.*$)?"),
+         facility_name = str_remove(facility_name, " Group(.*$)?"),
+         facility_name = str_remove(facility_name, " Cabin(.*$)?"),
+         name_first_word = str_extract(facility_name, "\\w+"),
+         agency = if_else(agency == "USFS", "FS", agency)
+         ) %>%
+  distinct(name_first_word, .keep_all = TRUE) %>%
+  select(name_first_word, facility_name, agency, ends_with("tude")) %>%
+  left_join(.,
+            nc_parks_site_types %>%
+              group_by(name_first_word) %>%
+              summarize(n_sites = sum(n_sites)) %>%
+              ungroup(),
+            by = "name_first_word") %>%
+  st_as_sf(coords = c("facility_longitude", "facility_latitude")) %>%
+  st_set_crs("NAD83")
+
+nc_counties <- tigris::counties(state = "37", # NC
+                                cb = TRUE) # download generalized 500K file
+
+```
+
+```{r}
+#| label: "fig-nc-map"
+#| fig-cap: "NC federal facilities offering overnight reservations"
+#| fig.width: 8
+#| column: page-right
+
+ggplot() + 
+  geom_sf(data = nc_counties, color = "grey50", size = 0.1, fill = "tan", alpha = 0.2) + 
+  geom_sf(data = nc_parks_for_map,
+          aes(color = agency, size = n_sites),
+          alpha = 0.5) +
+  geom_sf_text(data = nc_parks_for_map %>% st_crop(xmin = -180, xmax = -78, ymin = -90, ymax = 90),
+               aes(label = facility_name, color = agency),
+               check_overlap = TRUE,
+               vjust = 0.5,
+               hjust = 0, nudge_x = 0.075,
+               size = 2,
+               show.legend = FALSE) +
+  geom_sf_text(data = nc_parks_for_map %>% st_crop(xmin = -78, xmax = 0, ymin = -90, ymax = 90),
+               aes(label = facility_name, color = agency),
+               check_overlap = TRUE,
+               vjust = 0.5,
+               hjust = 1, nudge_x = -0.075,
+               size = 2,
+               show.legend = FALSE) +
+  scale_color_viridis_d(end = 0.8) +
+  guides(color = guide_legend(override.aes = list(size = 3))) +
+  theme_map() +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5),
+        legend.position = "bottom",
+        legend.justification = "center") +
+  labs(title = "NC federal facilities with overnight reservations",
+       subtitle = glue("at recreation.gov {year_lower_bound} - 2020"),
+       color = "Agency:",
+       size = "Number of sites:",
+       caption = my_caption
+  )
+```
+
+<br>
+
+## Campsites per campground
+
+About half the campgrounds have at least 50 campsites:
+
+```{r}
+#| label: "fig-nc-site-count-ecdf"
+#| fig-cap: "Campsites per campground - cumulative distribution"
+#| fig.width: 9
+#| fig.height: 6
+#| column: page-right
+
+nc_campsites %>%
+  count(facility_id_group, facility_name, name = "n_sites") %>%
+  ggplot(aes(n_sites)) +
+  stat_ecdf(size = 2, color = "firebrick", alpha = 0.9) +
+  geom_vline(xintercept = 50, lty = 2, color = "firebrick", alpha = 0.4) +
+  scale_x_continuous(breaks = c(0, 50, 100, 200, 300)) +
+  scale_y_continuous(labels = percent_format()) +
+  labs(title = glue("Percent of all {nrow(distinct(nc_parks_site_types, facility_id_group))}", 
+                    " NC campgrounds \nwith at least n_site campsites"),
+       y = "",
+       caption = my_caption)
+```
